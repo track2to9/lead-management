@@ -1,0 +1,8 @@
+anthropic
+openai
+beautifulsoup4
+requests
+playwright
+pandas
+openpyxl
+python-dotenv
