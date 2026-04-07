@@ -57,7 +57,13 @@ Analyze the target company and provide your assessment in the following JSON for
   "match_reason": "Why this company is or isn't a good match (in Korean / 한국어로, 1-2 sentences)",
   "approach": "Recommended approach strategy if this is a match (in Korean / 한국어로, 1-2 sentences)",
   "priority": "high" | "medium" | "low",
-  "detected_products": ["list of relevant products/services this company deals with"]
+  "detected_products": ["list of relevant products/services this company deals with"],
+
+  "current_suppliers": ["brands/suppliers mentioned or implied on their website"],
+  "company_size_estimate": "small (<50) | medium (50-500) | large (500+) | unknown",
+  "decision_maker_hint": "Likely decision maker role/title based on company type (e.g., 'Procurement Manager', 'Owner/CEO for small firms') (in Korean)",
+  "best_timing": "Best timing to approach this company (e.g., trade show season, budget cycle, product launch period) (in Korean / 한국어로)",
+  "competitive_landscape": "Brief note on their current supplier situation and switching potential (in Korean / 한국어로, 1 sentence)"
 }}
 
 Guidelines:
@@ -65,6 +71,11 @@ Guidelines:
 - priority: high = should contact immediately, medium = worth contacting, low = skip or deprioritize
 - If the website content is not in English, still analyze it (you understand multiple languages)
 - Be conservative with scores - only give high scores for clear, strong matches
+- For current_suppliers: extract brand names, partner logos, or mentions from the website content
+- For company_size_estimate: infer from website content (team page, office locations, product range)
+- For decision_maker_hint: suggest the most likely title/role to target based on company size and type
+- For best_timing: consider industry cycles, trade show seasons, or fiscal year patterns for their country
+- For competitive_landscape: note if they seem locked into existing suppliers or open to alternatives
 
 Return valid JSON only."""
 
@@ -81,6 +92,12 @@ Return valid JSON only."""
             "approach": result.get("approach", ""),
             "priority": result.get("priority", "low"),
             "detected_products": result.get("detected_products", []),
+            # 바이어 인텔리전스 확장 필드
+            "current_suppliers": result.get("current_suppliers", []),
+            "company_size_estimate": result.get("company_size_estimate", "unknown"),
+            "decision_maker_hint": result.get("decision_maker_hint", ""),
+            "best_timing": result.get("best_timing", ""),
+            "competitive_landscape": result.get("competitive_landscape", ""),
         }
 
         company["analysis"] = analysis

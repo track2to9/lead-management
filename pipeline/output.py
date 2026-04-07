@@ -47,7 +47,7 @@ def write_csv(results: list[dict], output_path: str, config_summary: dict | None
             writer.writerow([f"# 총 업체 수: {len(all_companies)}"])
             writer.writerow([])
 
-        # Zoho CRM 호환 헤더
+        # Zoho CRM 호환 헤더 (인텔리전스 + 팔로업 + 전시회 확장)
         headers = [
             "Company",          # 회사명
             "Website",          # 웹사이트
@@ -61,10 +61,27 @@ def write_csv(results: list[dict], output_path: str, config_summary: dict | None
             "Approach Strategy", # 접근 전략
             "Company Summary",  # 회사 요약
             "Products",         # 취급 제품
+            # 바이어 인텔리전스 확장
+            "Current Suppliers",     # 현재 공급업체
+            "Company Size",          # 회사 규모 추정
+            "Decision Maker",        # 의사결정권자 추정
+            "Best Timing",           # 최적 접근 시기
+            "Competitive Landscape", # 경쟁 환경
+            # 기존 필드
             "Contact Page",     # 연락처 페이지
             "Verification",     # 검증 상태
             "Email Subject",    # 이메일 제목 (초안)
             "Email Body",       # 이메일 본문 (초안)
+            # 팔로업 시퀀스
+            "Followup Day3 Subject",
+            "Followup Day3 Body",
+            "Followup Day7 Subject",
+            "Followup Day7 Body",
+            "Followup Day14 Subject",
+            "Followup Day14 Body",
+            # 전시회
+            "Matched Exhibitions",
+            # 메타
             "Data Source Type", # 소스 유형 (directory/llm)
             "Notes",            # 비고
         ]
@@ -76,9 +93,14 @@ def write_csv(results: list[dict], output_path: str, config_summary: dict | None
             email_draft = c.get("email_draft", {})
             emails = c.get("emails_found", [])
             phones = c.get("phone_found", [])
+            followups = c.get("followup_sequence", {}).get("emails", [])
+            exhibitions = c.get("matched_exhibitions", [])
 
             # 검증 상태 라벨
             status = validation.get("overall", c.get("verification_status", "UNVERIFIED"))
+
+            # 팔로업 이메일 (day별 매핑)
+            fu = {e.get("day"): e for e in followups}
 
             row = [
                 c.get("name", ""),
@@ -93,10 +115,27 @@ def write_csv(results: list[dict], output_path: str, config_summary: dict | None
                 analysis.get("approach", ""),
                 analysis.get("summary", ""),
                 ", ".join(analysis.get("detected_products", [])),
+                # 인텔리전스
+                ", ".join(analysis.get("current_suppliers", [])),
+                analysis.get("company_size_estimate", ""),
+                analysis.get("decision_maker_hint", ""),
+                analysis.get("best_timing", ""),
+                analysis.get("competitive_landscape", ""),
+                # 기존
                 c.get("contact_page", ""),
                 status,
                 email_draft.get("subject", ""),
                 email_draft.get("body", ""),
+                # 팔로업
+                fu.get(3, {}).get("subject", ""),
+                fu.get(3, {}).get("body", ""),
+                fu.get(7, {}).get("subject", ""),
+                fu.get(7, {}).get("body", ""),
+                fu.get(14, {}).get("subject", ""),
+                fu.get(14, {}).get("body", ""),
+                # 전시회
+                "; ".join(e.get("name", "") for e in exhibitions[:3]),
+                # 메타
                 c.get("source_type", "unknown"),
                 c.get("_warning", ""),
             ]
@@ -146,6 +185,7 @@ def write_excel(results: list[dict], output_path: str, config_summary: dict | No
         "No", "국가", "매칭점수", "우선순위", "업체명", "홈페이지",
         "이메일", "전화번호", "데이터 출처", "소스 유형",
         "회사 요약", "매칭 사유", "접근 전략", "취급 제품",
+        "현재 공급업체", "회사 규모", "의사결정권자", "접근 타이밍", "경쟁 환경",
         "검증 상태", "이메일 제목(초안)", "비고",
     ]
 
@@ -178,6 +218,11 @@ def write_excel(results: list[dict], output_path: str, config_summary: dict | No
             analysis.get("match_reason", ""),
             analysis.get("approach", ""),
             ", ".join(analysis.get("detected_products", [])),
+            ", ".join(analysis.get("current_suppliers", [])),
+            analysis.get("company_size_estimate", ""),
+            analysis.get("decision_maker_hint", ""),
+            analysis.get("best_timing", ""),
+            analysis.get("competitive_landscape", ""),
             status,
             email_draft.get("subject", ""),
             c.get("_warning", ""),
@@ -197,8 +242,8 @@ def write_excel(results: list[dict], output_path: str, config_summary: dict | No
             for col in range(1, len(headers) + 1):
                 ws.cell(row=row_idx, column=col).fill = medium_fill
 
-        # 검증 상태 색상
-        status_col = 15
+        # 검증 상태 색상 (20번째 컬럼: 인텔리전스 5개 추가됨)
+        status_col = 20
         status_cell = ws.cell(row=row_idx, column=status_col)
         if status == "verified":
             status_cell.fill = verified_fill
@@ -207,8 +252,8 @@ def write_excel(results: list[dict], output_path: str, config_summary: dict | No
         elif status in ("no_email_found", "UNVERIFIED"):
             status_cell.fill = warning_fill
 
-    # 컬럼 너비
-    widths = [5, 10, 8, 8, 30, 35, 30, 18, 20, 12, 40, 40, 40, 30, 12, 35, 20]
+    # 컬럼 너비 (인텔리전스 5개 컬럼 추가)
+    widths = [5, 10, 8, 8, 30, 35, 30, 18, 20, 12, 40, 40, 40, 30, 25, 12, 20, 25, 30, 12, 35, 20]
     for i, w in enumerate(widths):
         col_letter = chr(65 + i) if i < 26 else chr(64 + i // 26) + chr(65 + i % 26)
         ws.column_dimensions[col_letter].width = w
@@ -307,6 +352,151 @@ def write_excel(results: list[dict], output_path: str, config_summary: dict | No
     ws3.column_dimensions["E"].width = 30
     ws3.column_dimensions["F"].width = 40
     ws3.column_dimensions["G"].width = 80
+
+    # ── 팔로업 시퀀스 시트 ──
+    ws4 = wb.create_sheet("팔로업 시퀀스")
+
+    fu_headers = ["No", "국가", "업체명", "매칭점수", "단계", "발송일", "제목", "본문"]
+    for col, h in enumerate(fu_headers, 1):
+        cell = ws4.cell(row=1, column=col, value=h)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = Alignment(horizontal="center", wrap_text=True)
+        cell.border = thin_border
+
+    fu_row = 2
+    fu_num = 1
+    for c in all_companies:
+        followups = c.get("followup_sequence", {}).get("emails", [])
+        if not followups:
+            continue
+        for fu in followups:
+            data = [
+                fu_num,
+                c.get("_country", ""),
+                c.get("name", ""),
+                c.get("analysis", {}).get("match_score", 0),
+                fu.get("label", f"Day {fu.get('day', '?')}"),
+                f"+{fu.get('day', '?')}일",
+                fu.get("subject", ""),
+                fu.get("body", ""),
+            ]
+            for col, val in enumerate(data, 1):
+                cell = ws4.cell(row=fu_row, column=col, value=val)
+                cell.alignment = Alignment(vertical="top", wrap_text=True)
+                cell.border = thin_border
+            fu_row += 1
+        fu_num += 1
+
+    ws4.column_dimensions["A"].width = 5
+    ws4.column_dimensions["B"].width = 10
+    ws4.column_dimensions["C"].width = 25
+    ws4.column_dimensions["D"].width = 8
+    ws4.column_dimensions["E"].width = 10
+    ws4.column_dimensions["F"].width = 8
+    ws4.column_dimensions["G"].width = 40
+    ws4.column_dimensions["H"].width = 80
+
+    # ── 바이어 인텔리전스 시트 ──
+    ws5 = wb.create_sheet("바이어 인텔리전스")
+
+    intel_headers = [
+        "No", "국가", "업체명", "매칭점수", "현재 공급업체",
+        "회사 규모", "의사결정권자", "접근 타이밍", "경쟁 환경", "관련 전시회",
+    ]
+    for col, h in enumerate(intel_headers, 1):
+        cell = ws5.cell(row=1, column=col, value=h)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = Alignment(horizontal="center", wrap_text=True)
+        cell.border = thin_border
+
+    intel_row = 2
+    for idx, c in enumerate(all_companies, 1):
+        analysis = c.get("analysis", {})
+        if analysis.get("match_score", 0) < 30:
+            continue
+        exhibitions = c.get("matched_exhibitions", [])
+        data = [
+            idx,
+            c.get("_country", ""),
+            c.get("name", ""),
+            analysis.get("match_score", 0),
+            ", ".join(analysis.get("current_suppliers", [])),
+            analysis.get("company_size_estimate", ""),
+            analysis.get("decision_maker_hint", ""),
+            analysis.get("best_timing", ""),
+            analysis.get("competitive_landscape", ""),
+            "; ".join(e.get("name", "") for e in exhibitions[:3]),
+        ]
+        for col, val in enumerate(data, 1):
+            cell = ws5.cell(row=intel_row, column=col, value=val)
+            cell.alignment = Alignment(vertical="top", wrap_text=True)
+            cell.border = thin_border
+        intel_row += 1
+
+    ws5.column_dimensions["A"].width = 5
+    ws5.column_dimensions["B"].width = 10
+    ws5.column_dimensions["C"].width = 25
+    ws5.column_dimensions["D"].width = 8
+    ws5.column_dimensions["E"].width = 30
+    ws5.column_dimensions["F"].width = 15
+    ws5.column_dimensions["G"].width = 20
+    ws5.column_dimensions["H"].width = 30
+    ws5.column_dimensions["I"].width = 40
+    ws5.column_dimensions["J"].width = 35
+
+    # ── 전시회 시트 ──
+    ws6 = wb.create_sheet("관련 전시회")
+
+    ex_headers = [
+        "No", "전시회명", "개최 장소", "시기", "빈도",
+        "규모", "관련성", "대상 방문자", "웹사이트", "추천 액션",
+    ]
+    for col, h in enumerate(ex_headers, 1):
+        cell = ws6.cell(row=1, column=col, value=h)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = Alignment(horizontal="center", wrap_text=True)
+        cell.border = thin_border
+
+    # 전시회 데이터는 results 안에 exhibitions 키로 있을 수 있음
+    ex_row = 2
+    seen_exhibitions = set()
+    for r in results:
+        for ex in r.get("exhibitions", []):
+            ex_name = ex.get("name", "")
+            if ex_name in seen_exhibitions:
+                continue
+            seen_exhibitions.add(ex_name)
+            data = [
+                ex_row - 1,
+                ex_name,
+                ex.get("location", ""),
+                ex.get("typical_month", ""),
+                ex.get("frequency", ""),
+                ex.get("estimated_size", ""),
+                ex.get("relevance", ""),
+                ex.get("target_visitors", ""),
+                ex.get("website", ""),
+                ex.get("action_suggestion", ""),
+            ]
+            for col, val in enumerate(data, 1):
+                cell = ws6.cell(row=ex_row, column=col, value=val)
+                cell.alignment = Alignment(vertical="top", wrap_text=True)
+                cell.border = thin_border
+            ex_row += 1
+
+    ws6.column_dimensions["A"].width = 5
+    ws6.column_dimensions["B"].width = 30
+    ws6.column_dimensions["C"].width = 20
+    ws6.column_dimensions["D"].width = 15
+    ws6.column_dimensions["E"].width = 10
+    ws6.column_dimensions["F"].width = 15
+    ws6.column_dimensions["G"].width = 35
+    ws6.column_dimensions["H"].width = 25
+    ws6.column_dimensions["I"].width = 35
+    ws6.column_dimensions["J"].width = 35
 
     wb.save(output_path)
     print(f"  📊 Excel 저장: {output_path}")

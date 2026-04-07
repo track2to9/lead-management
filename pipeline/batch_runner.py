@@ -14,6 +14,8 @@ from .source_finder import find_sources
 from .candidate_collector import collect_from_sources, collect_via_llm_fallback
 from .analyzer import analyze_company
 from .email_drafter import draft_emails
+from .followup_drafter import draft_followup_sequence
+from .exhibition_finder import find_exhibitions, match_exhibitions_to_companies
 from .run_logger import RunLogger
 
 
@@ -143,14 +145,21 @@ async def run_single_country(
 
         for candidate in candidates:
             page_text = candidate.get("page_text", "")
-            if candidate.get("url_accessible", False) or page_text:
+            # --no-scrape 모드에서도 이름/URL/source 정보만으로 분석 시도
+            if not page_text and not candidate.get("url_accessible", False):
+                # 최소한 업체명과 소스 정보가 있으면 LLM에 분석 요청
+                name = candidate.get("name", "")
+                source = candidate.get("source", "")
+                if name:
+                    page_text = f"Company: {name}. Source: {source}. URL: {candidate.get('url', 'N/A')}. Country: {country}."
+            if page_text:
                 await analyze_company(candidate, page_text, client_profile, llm)
             else:
                 candidate["analysis"] = {
                     "sells_relevant_product": False,
                     "confidence": "low",
                     "match_score": 0,
-                    "summary": "홈페이지 접속 불가 / 텍스트 없음",
+                    "summary": "홈페이지 접속 불가 / 정보 없음",
                     "match_reason": "분석 불가",
                     "approach": "",
                     "priority": "low",
@@ -178,6 +187,31 @@ async def run_single_country(
             drafted = sum(1 for c in candidates if c.get("email_draft", {}).get("subject"))
             logger.log_step(country, "email_drafter", "completed", {"drafted": drafted})
 
+        # Step 7: 팔로업 이메일 시퀀스
+        if logger:
+            logger.log_step(country, "followup_drafter", "started")
+
+        candidates = draft_followup_sequence(
+            candidates, client_profile, llm,
+            sender_name=config.client.company_name,
+        )
+
+        if logger:
+            fu_count = sum(1 for c in candidates if c.get("followup_sequence", {}).get("emails"))
+            logger.log_step(country, "followup_drafter", "completed", {"sequences": fu_count})
+
+        # Step 8: 전시회 탐색 및 매칭
+        if logger:
+            logger.log_step(country, "exhibition_finder", "started")
+
+        exhibitions = find_exhibitions(config.target.product_category, [country], llm)
+        candidates = match_exhibitions_to_companies(exhibitions, candidates)
+
+        if logger:
+            logger.log_step(country, "exhibition_finder", "completed", {
+                "exhibitions_found": len(exhibitions),
+            })
+
         # 매칭 점수 순 정렬
         candidates.sort(
             key=lambda x: x.get("analysis", {}).get("match_score", 0),
@@ -185,6 +219,7 @@ async def run_single_country(
         )
 
         result["companies"] = candidates
+        result["exhibitions"] = exhibitions
         result["stats"] = _compute_stats(candidates)
 
     except Exception as e:
