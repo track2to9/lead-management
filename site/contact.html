@@ -45,8 +45,8 @@
 
         <div class="form-sidebar__content" data-step="1" style="display:none;">
           <div class="form-sidebar__label">STEP 1/5 · 제품 파악</div>
-          <h2>어떤 제품을<br>갖고 계신가요?</h2>
-          <p>제품 유형에 따라 검색할 데이터 소스와 분석 기준이 달라집니다.</p>
+          <h2>제품을 알아야<br>구매자를 찾습니다</h2>
+          <p>홈페이지를 알려주시면 AI가 직접 분석하여 제품 특성과 강점을 자동으로 파악합니다.</p>
           <div class="form-sidebar__case">
             <div class="form-sidebar__case-label">왜 이 질문이 중요한가</div>
             <p>같은 업종 기업을 찾으면 경쟁사가 나옵니다. 제품을 정확히 파악해야 "구매자"를 찾을 수 있습니다.</p>
@@ -65,11 +65,11 @@
 
         <div class="form-sidebar__content" data-step="3" style="display:none;">
           <div class="form-sidebar__label">STEP 3/5 · 국내 레퍼런스</div>
-          <h2>한국에서는 어디에<br>판매하고 있나요?</h2>
-          <p>국내 판매처를 알면, 해외에서 같은 역할을 하는 기업을 정확히 찾을 수 있습니다.</p>
+          <h2>국내 거래처가<br>해외 타겟의 힌트</h2>
+          <p>회사명 대신 "조선소", "통신사" 같은 업종만 적어도 충분합니다. 국내 납품 이력이 없으면 건너뛰어도 됩니다.</p>
           <div class="form-sidebar__case">
             <div class="form-sidebar__case-label">활용 방식</div>
-            <p>"국내에서 KT에 납품" → 일본에서는 NTT, KDDI 계열사가 동등한 타겟이 됩니다.</p>
+            <p>"통신사에 납품" → 일본에서는 동종 통신사/SI가 타겟이 됩니다.</p>
           </div>
         </div>
 
@@ -141,41 +141,22 @@
           <div class="form-step__content">
             <div class="form-step__number">1/5</div>
             <h3>어떤 제품/서비스를 보유하고 계신가요?</h3>
-            <p class="form-step__desc">해당하는 유형을 선택해 주세요.</p>
-            <div class="form-options" data-name="product">
-              <button class="form-option" data-value="parts">
-                <span class="form-option__key">A</span>
-                <span>산업 부품 / 장비 / 기계</span>
-              </button>
-              <button class="form-option" data-value="electronics">
-                <span class="form-option__key">B</span>
-                <span>전자부품 / 반도체 / IT장비</span>
-              </button>
-              <button class="form-option" data-value="software">
-                <span class="form-option__key">C</span>
-                <span>소프트웨어 / 솔루션 / SaaS</span>
-              </button>
-              <button class="form-option" data-value="telecom">
-                <span class="form-option__key">D</span>
-                <span>통신 / 네트워크 장비 / IoT</span>
-              </button>
-              <button class="form-option" data-value="consumer">
-                <span class="form-option__key">E</span>
-                <span>소비재 / 화장품 / 식품</span>
-              </button>
-              <button class="form-option" data-value="medical">
-                <span class="form-option__key">F</span>
-                <span>의료기기 / 바이오 / 화학</span>
-              </button>
-              <button class="form-option" data-value="construction">
-                <span class="form-option__key">G</span>
-                <span>건설 / 플랜트 / 에너지</span>
-              </button>
-              <button class="form-option" data-value="other">
-                <span class="form-option__key">H</span>
-                <span>기타</span>
-              </button>
+            <p class="form-step__desc">제품을 잘 파악할수록 정확한 바이어를 찾을 수 있습니다.</p>
+            <div class="form-fields" style="gap: var(--space-4);">
+              <div class="form-field">
+                <label>제품/서비스 분야 <span class="form-field__required">*</span></label>
+                <input type="text" id="productDesc" placeholder="예: 굴삭기 어태치먼트, 5G 코어 네트워크 솔루션, 화장품 OEM 등" required>
+              </div>
+              <div class="form-field">
+                <label>홈페이지 주소 <span class="form-field__optional">(있으면 AI가 직접 분석합니다)</span></label>
+                <input type="url" id="productUrl" placeholder="https://www.example.com">
+              </div>
+              <div class="form-field">
+                <label>제품 상세 설명 <span class="form-field__optional">(선택)</span></label>
+                <textarea id="productDetail" rows="3" placeholder="주요 제품 라인업, 강점, 기술 특징 등 자유롭게 적어주세요. 제품 카탈로그 PDF 링크도 좋습니다."></textarea>
+              </div>
             </div>
+            <button class="btn btn--primary form-next" style="margin-top: var(--space-6);">다음 &rarr;</button>
           </div>
         </div>
 
@@ -183,41 +164,16 @@
         <div class="form-step" data-step="2">
           <div class="form-step__content">
             <div class="form-step__number">2/5</div>
-            <h3>주로 어떤 회사/업종이 타겟 고객인가요?</h3>
-            <p class="form-step__desc">제품을 실제로 구매/도입하는 곳을 알려주세요. 복수 선택 가능.</p>
-            <div class="form-options form-options--multi" data-name="targetCustomer">
-              <button class="form-option" data-value="manufacturer">
-                <span class="form-option__key">A</span>
-                <span>제조업 / 공장 (스마트팩토리)</span>
-              </button>
-              <button class="form-option" data-value="construction_si">
-                <span class="form-option__key">B</span>
-                <span>건설 / 플랜트 / 인프라 SI</span>
-              </button>
-              <button class="form-option" data-value="telecom_carrier">
-                <span class="form-option__key">C</span>
-                <span>통신사 / 네트워크 사업자</span>
-              </button>
-              <button class="form-option" data-value="dealer_distributor">
-                <span class="form-option__key">D</span>
-                <span>딜러 / 유통사 / 대리점</span>
-              </button>
-              <button class="form-option" data-value="government">
-                <span class="form-option__key">E</span>
-                <span>공공기관 / 지자체 / 스마트시티</span>
-              </button>
-              <button class="form-option" data-value="logistics">
-                <span class="form-option__key">F</span>
-                <span>물류 / 항만 / 조선</span>
-              </button>
-              <button class="form-option" data-value="energy">
-                <span class="form-option__key">G</span>
-                <span>에너지 / 발전 / 유틸리티</span>
-              </button>
-              <button class="form-option" data-value="other">
-                <span class="form-option__key">H</span>
-                <span>기타 / 잘 모르겠다</span>
-              </button>
+            <h3>주로 어떤 곳이 타겟 고객인가요?</h3>
+            <p class="form-step__desc">
+              제품을 실제로 구매/도입하는 곳을 자유롭게 적어주세요.<br>
+              <span style="color: var(--color-text-muted);">이 정보가 가장 중요합니다 — 같은 업종이 아닌, 실제 "구매자"를 찾기 위함입니다.</span>
+            </p>
+            <div class="form-fields" style="gap: var(--space-4);">
+              <div class="form-field">
+                <label>타겟 고객 업종/유형 <span class="form-field__required">*</span></label>
+                <textarea id="targetCustomer" rows="3" placeholder="예: 건설장비 딜러, 조선소, 통신사, 스마트팩토리 구축 SI, 화장품 유통사, 병원/의료기관 등&#10;&#10;여러 개 적어주셔도 됩니다." required></textarea>
+              </div>
             </div>
             <button class="btn btn--primary form-next" style="margin-top: var(--space-6);">다음 &rarr;</button>
           </div>
@@ -228,18 +184,21 @@
           <div class="form-step__content">
             <div class="form-step__number">3/5</div>
             <h3>한국에서는 어떤 곳에 판매/납품하고 있나요?</h3>
-            <p class="form-step__desc">구체적일수록 해외에서 동등한 타겟을 정확히 찾을 수 있습니다.</p>
+            <p class="form-step__desc">
+              정확한 회사명이 아니어도 괜찮습니다.<br>
+              <span style="color: var(--color-text-muted);">"조선소", "통신사", "자동차 부품사" 등 업종 수준으로 적어주셔도 됩니다.<br>
+              해외에서 같은 역할을 하는 기업을 찾는 데 활용됩니다.</span>
+            </p>
             <div class="form-fields" style="gap: var(--space-4);">
               <div class="form-field">
-                <label>주요 국내 거래처 <span class="form-field__optional">(예: KT, 현대중공업, 삼성전자 등)</span></label>
-                <input type="text" id="domesticClients" placeholder="예: KT, 현대건설, 포스코 등" style="margin-bottom: 0;">
-              </div>
-              <div class="form-field">
-                <label>적용 분야 <span class="form-field__optional">(예: 조선소 특화망, 스마트팩토리 등)</span></label>
-                <input type="text" id="applicationArea" placeholder="예: 조선소 5G 특화망, 공장 자동화 등" style="margin-bottom: 0;">
+                <label>국내 거래처/납품처 <span class="form-field__optional">(업종명 또는 회사명)</span></label>
+                <input type="text" id="domesticClients" placeholder="예: 조선소, 통신사(KT), 자동차 부품 유통사 등">
               </div>
             </div>
-            <button class="btn btn--primary form-next" style="margin-top: var(--space-6);" onclick="answers.domesticClients=document.getElementById('domesticClients').value; answers.applicationArea=document.getElementById('applicationArea').value;">다음 &rarr;</button>
+            <div style="display: flex; gap: var(--space-4); margin-top: var(--space-6);">
+              <button class="btn btn--primary form-next" style="flex: 1;">다음 &rarr;</button>
+              <button class="btn btn--ghost form-next" style="flex-shrink: 0; color: var(--color-text-muted);" onclick="answers.domesticClients='국내 납품 없음'; document.getElementById('domesticClients').value='국내 납품 없음';">국내 납품 없음 &middot; 건너뛰기</button>
+            </div>
           </div>
         </div>
 
@@ -311,10 +270,11 @@
                 <textarea name="message" rows="3" placeholder="제품 상세 설명, 기존 해외 경험 등 추가 정보가 있으면 적어주세요."></textarea>
               </div>
               <!-- Hidden fields -->
-              <input type="hidden" name="product" id="hiddenProduct">
+              <input type="hidden" name="productDesc" id="hiddenProductdesc">
+              <input type="hidden" name="productUrl" id="hiddenProducturl">
+              <input type="hidden" name="productDetail" id="hiddenProductdetail">
               <input type="hidden" name="targetCustomer" id="hiddenTargetcustomer">
               <input type="hidden" name="domesticClients" id="hiddenDomesticclients">
-              <input type="hidden" name="applicationArea" id="hiddenApplicationarea">
               <input type="hidden" name="market" id="hiddenMarket">
               <!-- Web3Forms -->
               <input type="hidden" name="access_key" value="49321127-3e8c-47dd-a8e1-ecb942599407">
@@ -386,12 +346,7 @@
       currentStep = n;
 
       // Sync free-text fields to hidden inputs when advancing
-      if (n > 3) {
-        var dc = document.getElementById('domesticClients');
-        var aa = document.getElementById('applicationArea');
-        if (dc) { answers.domesticClients = dc.value; document.getElementById('hiddenDomesticclients').value = dc.value; }
-        if (aa) { answers.applicationArea = aa.value; document.getElementById('hiddenApplicationarea').value = aa.value; }
-      }
+      syncTextFields();
     }
 
     // Next buttons
@@ -451,7 +406,7 @@
       }
       var keyMap = { a: 0, b: 1, c: 2, d: 3, e: 4, f: 5, g: 6, h: 7 };
       var key = e.key.toLowerCase();
-      if (keyMap[key] !== undefined && (currentStep === 1 || currentStep === 2 || currentStep === 4)) {
+      if (keyMap[key] !== undefined && currentStep === 4) {
         var stepEl = document.querySelector('.form-step[data-step="' + currentStep + '"]');
         var options = stepEl.querySelectorAll('.form-option');
         if (options[keyMap[key]]) {
@@ -460,19 +415,26 @@
       }
     });
 
+    // Sync text fields to answers and hidden inputs
+    function syncTextFields() {
+      var fields = [
+        ['productDesc', 'hiddenProductdesc'],
+        ['productUrl', 'hiddenProducturl'],
+        ['productDetail', 'hiddenProductdetail'],
+        ['targetCustomer', 'hiddenTargetcustomer'],
+        ['domesticClients', 'hiddenDomesticclients']
+      ];
+      fields.forEach(function(pair) {
+        var el = document.getElementById(pair[0]);
+        var hidden = document.getElementById(pair[1]);
+        if (el && hidden) {
+          answers[pair[0]] = el.value;
+          hidden.value = el.value;
+        }
+      });
+    }
+
     // Label mappings
-    var productLabels = {
-      parts: '산업 부품/장비/기계', electronics: '전자부품/반도체/IT장비',
-      software: '소프트웨어/솔루션/SaaS', telecom: '통신/네트워크/IoT',
-      consumer: '소비재/화장품/식품', medical: '의료기기/바이오/화학',
-      construction: '건설/플랜트/에너지', other: '기타'
-    };
-    var targetLabels = {
-      manufacturer: '제조업/공장', construction_si: '건설/플랜트 SI',
-      telecom_carrier: '통신사/네트워크 사업자', dealer_distributor: '딜러/유통사/대리점',
-      government: '공공기관/스마트시티', logistics: '물류/항만/조선',
-      energy: '에너지/발전/유틸리티', other: '기타'
-    };
     var marketLabels = {
       japan: '일본', europe: '유럽(EU)', northamerica: '북미',
       southeast_asia: '동남아시아', middleeast: '중동', china: '중국',
@@ -480,11 +442,16 @@
     };
 
     function getReadableAnswers() {
-      var prod = productLabels[answers.product] || answers.product || '';
-      var tgt = (answers.targetCustomer || '').split(', ').map(function(v) { return targetLabels[v] || v; }).join(', ');
+      syncTextFields();
       var mkt = (answers.market || '').split(', ').map(function(v) { return marketLabels[v] || v; }).join(', ');
-      return { product: prod, targetCustomer: tgt, market: mkt,
-               domesticClients: answers.domesticClients || '', applicationArea: answers.applicationArea || '' };
+      return {
+        productDesc: answers.productDesc || '',
+        productUrl: answers.productUrl || '',
+        productDetail: answers.productDetail || '',
+        targetCustomer: answers.targetCustomer || '',
+        domesticClients: answers.domesticClients || '',
+        market: mkt
+      };
     }
 
     // Discord webhook
@@ -501,10 +468,10 @@
             { name: '회사명/성함', value: data.get('name') || '-', inline: true },
             { name: '이메일', value: data.get('email') || '-', inline: true },
             { name: '전화번호', value: data.get('phone') || '미입력', inline: true },
-            { name: '1. 제품/서비스', value: r.product || '미선택', inline: false },
-            { name: '2. 타겟 고객', value: r.targetCustomer || '미선택', inline: false },
-            { name: '3. 국내 거래처', value: r.domesticClients || '미입력', inline: true },
-            { name: '3. 적용 분야', value: r.applicationArea || '미입력', inline: true },
+            { name: '1. 제품/서비스', value: r.productDesc || '미입력', inline: false },
+            { name: '1. 홈페이지', value: r.productUrl || '미입력', inline: false },
+            { name: '2. 타겟 고객', value: r.targetCustomer || '미입력', inline: false },
+            { name: '3. 국내 거래처', value: r.domesticClients || '미입력', inline: false },
             { name: '4. 타겟 국가', value: r.market || '미선택', inline: false },
             { name: '추가 메시지', value: data.get('message') || '없음', inline: false }
           ],
@@ -529,10 +496,11 @@
 
         var formData = new FormData(form);
         var r = getReadableAnswers();
-        formData.set('product', r.product || '미선택');
-        formData.set('targetCustomer', r.targetCustomer || '미선택');
+        formData.set('productDesc', r.productDesc || '미입력');
+        formData.set('productUrl', r.productUrl || '미입력');
+        formData.set('productDetail', r.productDetail || '미입력');
+        formData.set('targetCustomer', r.targetCustomer || '미입력');
         formData.set('domesticClients', r.domesticClients || '미입력');
-        formData.set('applicationArea', r.applicationArea || '미입력');
         formData.set('market', r.market || '미선택');
 
         fetch('https://api.web3forms.com/submit', {
