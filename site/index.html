@@ -6,6 +6,7 @@
   <title>TradeVoy - AI 기반 해외 바이어 발굴 서비스</title>
   <meta name="description" content="TradeVoy - AI 기술과 전문가 검증을 결합한 해외 바이어 발굴. 검증된 바이어 리스트와 맞춤형 컨택 이메일을 제공합니다.">
   <link rel="stylesheet" href="styles.css">
+  <script src="https://unpkg.com/@dotlottie/player-component@2.7.12/dist/dotlottie-player.mjs" type="module"></script>
 </head>
 <body>
 
@@ -26,30 +27,106 @@
     </div>
   </nav>
 
-  <!-- Hero -->
+  <!-- Hero - Light bg with floating dashboard -->
   <section class="hero">
     <div class="container">
-      <div class="hero__content">
-        <div class="hero__badge fade-in">AI + Expert Verification</div>
-        <h1 class="hero__title fade-in">
-          바이어를 찾고,<br>
-          <span class="accent-text">거래를 성사시킵니다.</span>
-        </h1>
-        <p class="hero__subtitle fade-in">
-          제품 정보와 타겟 국가만 알려주세요.<br>
-          AI가 발굴하고, 전문가가 검증한<br>
-          바이어 리스트를 전달합니다.
-        </p>
-        <div class="hero__actions fade-in">
-          <a href="#contact" class="btn btn--primary btn--lg">무료 상담 신청</a>
-          <a href="how-it-works.html" class="btn btn--outline btn--lg">작동 방식 보기</a>
+      <div class="hero__grid">
+        <div class="hero__content">
+          <div class="hero__badge fade-in">AI + Expert Verification</div>
+          <h1 class="hero__title fade-in">
+            바이어를 찾고,<br>
+            <span class="accent-text">거래를 성사시킵니다.</span>
+          </h1>
+          <p class="hero__subtitle fade-in">
+            제품 정보와 타겟 국가만 알려주세요.<br>
+            AI가 발굴하고, 전문가가 검증한<br>
+            바이어 리스트를 전달합니다.
+          </p>
+          <div class="hero__actions fade-in">
+            <a href="#contact" class="btn btn--primary btn--lg">무료 상담 신청</a>
+            <a href="how-it-works.html" class="btn btn--outline-dark btn--lg">작동 방식 보기</a>
+          </div>
+        </div>
+        <div class="hero__visual fade-in">
+          <!-- Floating dashboard cards -->
+          <div class="dashboard">
+            <div class="dashboard__card dashboard__card--main float-y">
+              <div class="dashboard__card-header">
+                <span class="dashboard__card-dot dashboard__card-dot--green"></span>
+                바이어 분석 현황
+              </div>
+              <div class="dashboard__stats-row">
+                <div class="dashboard__mini-stat">
+                  <div class="dashboard__mini-stat-number">127</div>
+                  <div class="dashboard__mini-stat-label">발굴된 바이어</div>
+                </div>
+                <div class="dashboard__mini-stat">
+                  <div class="dashboard__mini-stat-number">89</div>
+                  <div class="dashboard__mini-stat-label">검증 완료</div>
+                </div>
+                <div class="dashboard__mini-stat">
+                  <div class="dashboard__mini-stat-number">34</div>
+                  <div class="dashboard__mini-stat-label">High 등급</div>
+                </div>
+              </div>
+              <div class="dashboard__progress">
+                <div class="dashboard__progress-label">전체 진행률</div>
+                <div class="dashboard__progress-bar">
+                  <div class="dashboard__progress-fill" style="width: 78%;"></div>
+                </div>
+                <div class="dashboard__progress-pct">78%</div>
+              </div>
+            </div>
+
+            <div class="dashboard__card dashboard__card--buyer float-y-delay">
+              <div class="dashboard__card-header">
+                <span class="dashboard__card-dot dashboard__card-dot--orange"></span>
+                Top 바이어
+              </div>
+              <div class="dashboard__buyer-row">
+                <div>
+                  <div class="dashboard__buyer-name">Global Trade Solutions</div>
+                  <div class="dashboard__buyer-country">미국 · 산업용 부품</div>
+                </div>
+                <div class="dashboard__buyer-score">95</div>
+              </div>
+              <div class="dashboard__buyer-row">
+                <div>
+                  <div class="dashboard__buyer-name">EuroTech GmbH</div>
+                  <div class="dashboard__buyer-country">독일 · 전자부품</div>
+                </div>
+                <div class="dashboard__buyer-score">88</div>
+              </div>
+              <div class="dashboard__buyer-row">
+                <div>
+                  <div class="dashboard__buyer-name">Pacific Rim Imports</div>
+                  <div class="dashboard__buyer-country">호주 · 산업 장비</div>
+                </div>
+                <div class="dashboard__buyer-score">82</div>
+              </div>
+            </div>
+
+            <div class="dashboard__card dashboard__card--email float-y-delay-2">
+              <div class="dashboard__card-header">
+                <span class="dashboard__card-dot dashboard__card-dot--blue"></span>
+                이메일 준비 완료
+              </div>
+              <div class="dashboard__email-preview">
+                <div class="dashboard__email-subject">Re: Partnership Inquiry</div>
+                <div class="dashboard__email-body">Dear Mr. Wilson, We are a leading manufacturer of precision parts...</div>
+              </div>
+              <div class="dashboard__email-status">
+                <span class="dashboard__email-badge">3건 발송 대기</span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- Problem / Solution -->
-  <section class="contrast-section">
+  <!-- Problem / Solution - Dark section -->
+  <section class="section section--dark">
     <div class="container">
       <div class="contrast-grid">
         <div class="contrast-card contrast-card--problem fade-in">
@@ -58,7 +135,7 @@
           <ul class="contrast-card__list">
             <li>전시회 참가비만 수백만원, 성과는 불확실</li>
             <li>무역 디렉토리 검색에 수개월 소요</li>
-            <li>찾은 바이어가 실제로 활동하는 기업인지 확인 불가</li>
+            <li>찾은 바이어가 실제 활동 기업인지 확인 불가</li>
             <li>영문 이메일 작성과 비즈니스 문화 장벽</li>
           </ul>
         </div>
@@ -76,119 +153,112 @@
     </div>
   </section>
 
-  <!-- Services - Numbered -->
-  <section class="section">
+  <!-- Services - Light section with numbered items -->
+  <section class="section section--light">
     <div class="container">
-      <div class="text-center fade-in" style="margin-bottom: var(--space-12);">
+      <div class="section-header fade-in">
+        <div class="section-label">OUR SERVICES</div>
         <h2 class="section-title">원스톱 바이어 발굴</h2>
         <p class="section-subtitle">
           복잡한 도구를 배울 필요 없습니다. 결과만 받으세요.
         </p>
       </div>
 
-      <div class="service-numbered fade-in">
-        <div class="service-numbered__inner">
-          <div class="service-numbered__number">01</div>
-          <div class="service-numbered__content">
-            <h3>해외 바이어 발굴</h3>
-            <p>AI가 글로벌 무역 데이터, 산업 디렉토리, 수출입 기록 등 다양한 데이터 소스를 종합 분석하여 타겟 시장의 잠재 바이어를 자동으로 수집합니다.</p>
-          </div>
+      <div class="services-grid">
+        <div class="service-card service-card--accent fade-in fade-in-delay-1">
+          <div class="service-card__number">01</div>
+          <h3 class="service-card__title">해외 바이어 발굴</h3>
+          <p class="service-card__desc">AI가 글로벌 무역 데이터, 산업 디렉토리, 수출입 기록을 종합 분석하여 잠재 바이어를 자동 수집합니다.</p>
         </div>
-      </div>
-
-      <div class="service-numbered fade-in">
-        <div class="service-numbered__inner">
-          <div class="service-numbered__number">02</div>
-          <div class="service-numbered__content">
-            <h3>AI 웹사이트 분석 + 매칭 점수</h3>
-            <p>바이어 웹사이트를 AI가 심층 분석하여 사업 현황, 취급 품목, 규모를 파악하고 0~100점의 제품 매칭 점수를 산출합니다.</p>
-          </div>
+        <div class="service-card fade-in fade-in-delay-2">
+          <div class="service-card__number">02</div>
+          <h3 class="service-card__title">AI 분석 + 매칭 점수</h3>
+          <p class="service-card__desc">바이어 웹사이트를 AI가 심층 분석하여 사업 현황, 취급 품목을 파악하고 제품 매칭 점수를 산출합니다.</p>
         </div>
-      </div>
-
-      <div class="service-numbered fade-in">
-        <div class="service-numbered__inner">
-          <div class="service-numbered__number">03</div>
-          <div class="service-numbered__content">
-            <h3>전문가 검증</h3>
-            <p>AI 분석 결과를 전문가가 최종 검증합니다. 실재성, 연락처 유효성, 사업 신뢰도를 확인하고 우선순위로 분류합니다.</p>
-          </div>
+        <div class="service-card fade-in fade-in-delay-3">
+          <div class="service-card__number">03</div>
+          <h3 class="service-card__title">전문가 검증</h3>
+          <p class="service-card__desc">AI 분석 결과를 전문가가 최종 검증합니다. 실재성, 연락처 유효성, 사업 신뢰도를 확인하고 분류합니다.</p>
         </div>
-      </div>
-
-      <div class="service-numbered fade-in">
-        <div class="service-numbered__inner">
-          <div class="service-numbered__number">04</div>
-          <div class="service-numbered__content">
-            <h3>맞춤형 접근 이메일</h3>
-            <p>각 바이어의 특성에 맞춘 개별 이메일을 영어 및 현지 언어로 작성합니다. 고객사 검토 후 바로 발송 가능합니다.</p>
-          </div>
+        <div class="service-card fade-in fade-in-delay-1">
+          <div class="service-card__number">04</div>
+          <h3 class="service-card__title">맞춤형 접근 이메일</h3>
+          <p class="service-card__desc">각 바이어의 특성에 맞춘 개별 이메일을 영어 및 현지 언어로 작성합니다.</p>
         </div>
-      </div>
-
-      <div class="service-numbered fade-in">
-        <div class="service-numbered__inner">
-          <div class="service-numbered__number">05</div>
-          <div class="service-numbered__content">
-            <h3>CRM 연동 데이터 제공</h3>
-            <p>Zoho, Salesforce, HubSpot 등 주요 CRM과 호환되는 포맷으로 제공합니다. Excel/CSV 형태로도 전달 가능합니다.</p>
-          </div>
+        <div class="service-card service-card--blue fade-in fade-in-delay-2">
+          <div class="service-card__number">05</div>
+          <h3 class="service-card__title">CRM 연동 데이터</h3>
+          <p class="service-card__desc">Zoho, Salesforce, HubSpot 등 주요 CRM과 호환되는 포맷으로 제공합니다.</p>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- Pipeline -->
-  <section class="section section--alt">
+  <!-- Pipeline - Dark section -->
+  <section class="section section--dark">
     <div class="container">
-      <div class="text-center fade-in" style="margin-bottom: var(--space-16);">
-        <h2 class="section-title">진행 과정</h2>
-        <p class="section-subtitle">
+      <div class="section-header fade-in">
+        <div class="section-label" style="color: var(--color-accent);">OUR PIPELINE</div>
+        <h2 class="section-title" style="color: #fff;">진행 과정</h2>
+        <p class="section-subtitle" style="color: rgba(255,255,255,0.6);">
           상담부터 검증된 리드 전달까지, 단 4단계.
         </p>
       </div>
-      <div class="pipeline fade-in">
-        <div class="pipeline-step">
-          <div class="pipeline-step__dot">1</div>
-          <div class="pipeline-step__title">무료 상담</div>
-          <div class="pipeline-step__desc">제품 정보와 타겟 시장 파악</div>
+      <div class="pipeline-vertical fade-in">
+        <div class="pipeline-vertical__line"></div>
+        <div class="pipeline-vertical__step">
+          <div class="pipeline-vertical__dot"></div>
+          <div class="pipeline-vertical__content">
+            <div class="pipeline-vertical__number">01.</div>
+            <h3>무료 상담</h3>
+            <p>제품 정보와 타겟 시장을 파악하고, 이상적인 바이어 프로필을 함께 설정합니다.</p>
+          </div>
         </div>
-        <div class="pipeline-step">
-          <div class="pipeline-step__dot">2</div>
-          <div class="pipeline-step__title">AI 분석 + 검증</div>
-          <div class="pipeline-step__desc">바이어 발굴 및 전문가 검증</div>
+        <div class="pipeline-vertical__step">
+          <div class="pipeline-vertical__dot"></div>
+          <div class="pipeline-vertical__content">
+            <div class="pipeline-vertical__number">02.</div>
+            <h3>AI 분석 + 검증</h3>
+            <p>AI가 바이어를 발굴하고, 전문가가 검증합니다. 매칭 점수와 우선순위를 산출합니다.</p>
+          </div>
         </div>
-        <div class="pipeline-step">
-          <div class="pipeline-step__dot">3</div>
-          <div class="pipeline-step__title">결과 검토</div>
-          <div class="pipeline-step__desc">리스트 확인 및 피드백</div>
+        <div class="pipeline-vertical__step">
+          <div class="pipeline-vertical__dot"></div>
+          <div class="pipeline-vertical__content">
+            <div class="pipeline-vertical__number">03.</div>
+            <h3>결과 검토</h3>
+            <p>검증된 바이어 리스트를 확인하고, 피드백을 주시면 추가 조정합니다.</p>
+          </div>
         </div>
-        <div class="pipeline-step">
-          <div class="pipeline-step__dot">4</div>
-          <div class="pipeline-step__title">컨택 시작</div>
-          <div class="pipeline-step__desc">맞춤 이메일로 바이어 접근</div>
+        <div class="pipeline-vertical__step">
+          <div class="pipeline-vertical__dot"></div>
+          <div class="pipeline-vertical__content">
+            <div class="pipeline-vertical__number">04.</div>
+            <h3>컨택 시작</h3>
+            <p>맞춤형 이메일로 바이어에게 접근합니다. 캘린더에 미팅이 잡힙니다.</p>
+          </div>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- Stats -->
-  <section class="stats-section">
+  <!-- Stats - Light section -->
+  <section class="section section--light">
     <div class="container">
       <div class="stats fade-in">
-        <div>
+        <div class="stat">
           <div class="stat__number">50+</div>
           <div class="stat__label">분석 대상 국가</div>
         </div>
-        <div>
+        <div class="stat">
           <div class="stat__number">10,000+</div>
           <div class="stat__label">데이터 소스</div>
         </div>
-        <div>
+        <div class="stat">
           <div class="stat__number">92%</div>
           <div class="stat__label">바이어 검증 정확도</div>
         </div>
-        <div>
+        <div class="stat">
           <div class="stat__number">48h</div>
           <div class="stat__label">평균 리드 전달 시간</div>
         </div>
@@ -196,8 +266,8 @@
     </div>
   </section>
 
-  <!-- CTA / Contact -->
-  <section class="cta-section" id="contact">
+  <!-- CTA / Contact - Dark section -->
+  <section class="section section--dark cta-section" id="contact">
     <div class="container">
       <h2 class="fade-in">지금 바로<br>상담을 신청하세요</h2>
       <p class="fade-in">
@@ -224,9 +294,10 @@
     </div>
   </section>
 
-  <!-- Footer -->
+  <!-- Footer - with watermark text like LeadsForge -->
   <footer class="footer">
     <div class="container">
+      <div class="footer__watermark">TRADEVOY</div>
       <div class="footer__inner">
         <div>
           <div class="footer__brand">Trade<span>Voy</span></div>
@@ -236,13 +307,14 @@
           </p>
         </div>
         <div class="footer__links">
-          <h4>서비스</h4>
+          <h4>/Links</h4>
+          <a href="index.html">메인</a>
           <a href="services.html">서비스 소개</a>
           <a href="how-it-works.html">작동 방식</a>
           <a href="about.html">회사 소개</a>
         </div>
         <div class="footer__links">
-          <h4>문의</h4>
+          <h4>/Contact</h4>
           <a href="mailto:contact@devpartner.org">contact@devpartner.org</a>
           <a href="tel:050-6050-6188">050-6050-6188</a>
         </div>
