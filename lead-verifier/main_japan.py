@@ -52,7 +52,7 @@ def parse_structured_excel(filepath: str) -> list[dict]:
 async def main():
     # ── 설정 ──
     BASE_DIR = os.path.dirname(__file__)
-    INPUT_FILE = os.path.join(BASE_DIR, "input/uangel_japan_local5g_targets.xlsx")
+    INPUT_FILE = os.path.join(BASE_DIR, "input/uangel_japan_local5g_buyers.xlsx")
     OUTPUT_DIR = os.path.join(BASE_DIR, "output")
     SCREENSHOT_DIR = os.path.join(BASE_DIR, "screenshots_japan")
 
