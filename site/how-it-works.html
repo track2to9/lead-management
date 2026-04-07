@@ -27,60 +27,105 @@
   </nav>
 
   <!-- Page Header -->
-  <section class="page-header">
+  <section class="page-header" style="padding-bottom: var(--space-8);">
     <div class="container">
       <h1 class="page-header__title fade-in">작동 방식</h1>
       <p class="page-header__desc fade-in">
-        제품 정보 제공부터 검증된 바이어 리스트 수령까지,<br>
-        6단계 프로세스를 안내합니다.
+        제품 정보만 알려주시면,<br>
+        검증된 바이어 리스트를 전달합니다.
       </p>
     </div>
   </section>
 
-  <!-- Steps - Light -->
-  <section class="section section--light">
+  <!-- 4-Step Overview - Horizontal cards -->
+  <section class="section section--light" style="padding-top: var(--space-8);">
     <div class="container">
-      <div class="steps">
-        <div class="step fade-in">
-          <div class="step__number">1</div>
-          <div class="step__content">
-            <h3>고객사 제품 분석</h3>
-            <p>고객사의 웹사이트, 제품 카탈로그, 기존 수출 이력을 분석합니다. 제품의 특성, 강점, 타겟 시장에서의 경쟁력을 파악하여 이상적인 바이어 프로필을 설정합니다.</p>
+      <div class="how-steps fade-in">
+        <div class="how-step">
+          <div class="how-step__number">01</div>
+          <div class="how-step__icon">&#9742;</div>
+          <h3 class="how-step__title">상담</h3>
+          <p class="how-step__desc">제품 정보와 타겟 시장을 파악하고 이상적인 바이어 프로필을 설정합니다.</p>
+          <div class="how-step__detail">제품 카탈로그 분석<br>타겟 시장 선정<br>바이어 프로필 설정</div>
+        </div>
+        <div class="how-step__arrow">&rarr;</div>
+        <div class="how-step">
+          <div class="how-step__number">02</div>
+          <div class="how-step__icon">&#9881;</div>
+          <h3 class="how-step__title">AI 발굴 + 검증</h3>
+          <p class="how-step__desc">AI가 바이어를 수집하고, 웹사이트를 분석하여 매칭 점수를 산출합니다.</p>
+          <div class="how-step__detail">10,000+ 소스 분석<br>웹사이트 AI 심층 분석<br>전문가 이중 검증</div>
+        </div>
+        <div class="how-step__arrow">&rarr;</div>
+        <div class="how-step">
+          <div class="how-step__number">03</div>
+          <div class="how-step__icon">&#9745;</div>
+          <h3 class="how-step__title">결과 전달</h3>
+          <p class="how-step__desc">검증된 바이어 리스트와 맞춤 접근 이메일을 전달합니다.</p>
+          <div class="how-step__detail">매칭 점수 포함 리스트<br>우선순위 분류 (High/Med/Low)<br>맞춤 이메일 초안</div>
+        </div>
+        <div class="how-step__arrow">&rarr;</div>
+        <div class="how-step">
+          <div class="how-step__number">04</div>
+          <div class="how-step__icon">&#9993;</div>
+          <h3 class="how-step__title">컨택 시작</h3>
+          <p class="how-step__desc">고객사가 검토 후 바이어에게 직접 접근합니다. CRM 연동도 가능합니다.</p>
+          <div class="how-step__detail">이메일 검토 후 발송<br>CRM 호환 데이터<br>후속 지원 가능</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Detailed Steps - collapsible detail -->
+  <section class="section section--dark">
+    <div class="container">
+      <div class="section-header fade-in">
+        <div class="section-label" style="color: var(--color-accent);">DETAILED PROCESS</div>
+        <h2 class="section-title" style="color: #fff;">더 자세히 알아보기</h2>
+        <p class="section-subtitle" style="color: rgba(255,255,255,0.6);">
+          각 단계에서 구체적으로 어떤 일이 일어나는지 안내합니다.
+        </p>
+      </div>
+      <div class="pipeline-vertical fade-in">
+        <div class="pipeline-vertical__line"></div>
+        <div class="pipeline-vertical__step">
+          <div class="pipeline-vertical__dot"></div>
+          <div class="pipeline-vertical__content">
+            <div class="pipeline-vertical__number">01.</div>
+            <h3>고객사 제품 분석 + ICP 설정</h3>
+            <p>웹사이트, 제품 카탈로그, 수출 이력을 분석합니다. 제품의 강점과 타겟 시장 경쟁력을 파악하여 이상적인 바이어 프로필(ICP)을 설정합니다.</p>
           </div>
         </div>
-        <div class="step fade-in">
-          <div class="step__number">2</div>
-          <div class="step__content">
-            <h3>타겟 시장 데이터 소스 탐색</h3>
-            <p>글로벌 무역 디렉토리, 산업별 데이터베이스, 수출입 관세 기록, 비즈니스 네트워크 등 다양한 데이터 소스를 활용하여 타겟 시장의 잠재 바이어 풀을 구성합니다.</p>
+        <div class="pipeline-vertical__step">
+          <div class="pipeline-vertical__dot"></div>
+          <div class="pipeline-vertical__content">
+            <div class="pipeline-vertical__number">02.</div>
+            <h3>데이터 소스 탐색 + 바이어 수집</h3>
+            <p>글로벌 무역 디렉토리, 산업별 DB, 수출입 관세 기록, 비즈니스 네트워크를 교차 탐색하여 잠재 바이어 풀을 구성합니다.</p>
           </div>
         </div>
-        <div class="step fade-in">
-          <div class="step__number">3</div>
-          <div class="step__content">
-            <h3>잠재 바이어 수집 및 1차 필터링</h3>
-            <p>AI가 수집된 기업 데이터를 분석하여 관련성이 높은 바이어를 자동으로 선별합니다. 산업 분류, 취급 품목, 기업 규모 등 기본 조건에 따라 1차 필터링을 수행합니다.</p>
+        <div class="pipeline-vertical__step">
+          <div class="pipeline-vertical__dot"></div>
+          <div class="pipeline-vertical__content">
+            <div class="pipeline-vertical__number">03.</div>
+            <h3>AI 웹사이트 분석 + 매칭 점수</h3>
+            <p>바이어 웹사이트를 AI가 현지 언어로 직접 분석합니다. 취급 제품, 사업 규모, 파트너십 이력을 종합 평가하여 0~100점 매칭 점수를 산출합니다.</p>
           </div>
         </div>
-        <div class="step fade-in">
-          <div class="step__number">4</div>
-          <div class="step__content">
-            <h3>AI 웹사이트 분석 + 제품 매칭 점수</h3>
-            <p>1차 필터링을 통과한 바이어의 웹사이트를 AI가 심층 분석합니다. 사업 현황, 취급 제품, 파트너십 이력, 시장 포지션 등을 종합 평가하여 0~100점의 제품 매칭 점수를 산출합니다.</p>
+        <div class="pipeline-vertical__step">
+          <div class="pipeline-vertical__dot"></div>
+          <div class="pipeline-vertical__content">
+            <div class="pipeline-vertical__number">04.</div>
+            <h3>전문가 검증 + 우선순위 분류</h3>
+            <p>AI 분석 결과를 전문가가 최종 검증합니다. 실재성, 연락처 유효성, 사업 신뢰도를 확인하고 High/Medium/Low로 분류합니다.</p>
           </div>
         </div>
-        <div class="step fade-in">
-          <div class="step__number">5</div>
-          <div class="step__content">
-            <h3>전문가 검증 및 우선순위 분류</h3>
-            <p>AI 분석 결과를 전문가가 최종 검증합니다. 기업의 실재성, 연락처 유효성, 사업 신뢰도를 확인하고 High / Medium / Low 우선순위로 분류합니다.</p>
-          </div>
-        </div>
-        <div class="step fade-in">
-          <div class="step__number">6</div>
-          <div class="step__content">
-            <h3>맞춤형 접근 이메일 + 검증된 리드 리스트 전달</h3>
-            <p>검증 완료된 바이어 리스트와 함께, 각 바이어에 맞춤화된 접근 이메일 초안을 작성하여 전달합니다. 고객사는 검토 후 바로 활용할 수 있습니다.</p>
+        <div class="pipeline-vertical__step">
+          <div class="pipeline-vertical__dot"></div>
+          <div class="pipeline-vertical__content">
+            <div class="pipeline-vertical__number">05.</div>
+            <h3>맞춤 이메일 + 리드 리스트 전달</h3>
+            <p>검증된 바이어 리스트와 각 바이어에 맞춤화된 접근 이메일 초안을 작성하여 전달합니다. 고객사는 검토 후 바로 활용할 수 있습니다.</p>
           </div>
         </div>
       </div>
