@@ -281,8 +281,11 @@
               <input type="hidden" name="industry" id="hiddenIndustry">
               <input type="hidden" name="market" id="hiddenMarket">
               <input type="hidden" name="situation" id="hiddenSituation">
-              <input type="hidden" name="access_key" value="contact@devpartner.org">
+              <!-- Web3Forms -->
+              <input type="hidden" name="access_key" value="49321127-3e8c-47dd-a8e1-ecb942599407">
               <input type="hidden" name="subject" value="[TradeVoy] 무료 상담 신청">
+              <input type="hidden" name="from_name" value="TradeVoy 상담 폼">
+              <input type="hidden" name="redirect" value="">
 
               <div class="form-consent">
                 <label>
@@ -417,29 +420,96 @@
       }
     });
 
+    // Label mappings for readable output
+    var industryLabels = {
+      parts: '산업 부품/장비', electronics: '전자부품/반도체', consumer: '소비재/생활용품',
+      food: '식품/농산물', chemical: '화학/소재', medical: '의료기기/바이오',
+      cosmetics: '화장품/뷰티', other: '기타'
+    };
+    var marketLabels = {
+      europe: '유럽(EU)', northamerica: '북미', southeast_asia: '동남아시아',
+      japan: '일본', china: '중국', middleeast: '중동', latam: '중남미', other: '기타/미정'
+    };
+    var situationLabels = {
+      not_started: '아직 시작 전', tried_expo: '전시회 참가 경험 있음',
+      some_buyers: '기존 바이어 확대 필요', specific_market: '특정 시장 진출 검토 중',
+      urgent: '급히 바이어 리스트 필요'
+    };
+
+    function getReadableAnswers() {
+      var ind = (answers.industry || '').split(', ').map(function(v) { return industryLabels[v] || v; }).join(', ');
+      var mkt = (answers.market || '').split(', ').map(function(v) { return marketLabels[v] || v; }).join(', ');
+      var sit = situationLabels[answers.situation] || answers.situation || '';
+      return { industry: ind, market: mkt, situation: sit };
+    }
+
+    // Discord webhook URL (set empty string to disable)
+    var DISCORD_WEBHOOK = '';
+
+    function sendToDiscord(data) {
+      if (!DISCORD_WEBHOOK) return;
+      var readable = getReadableAnswers();
+      var embed = {
+        embeds: [{
+          title: '🔔 TradeVoy 무료 상담 신청',
+          color: 0xf15f23,
+          fields: [
+            { name: '회사명/성함', value: data.get('name') || '-', inline: true },
+            { name: '이메일', value: data.get('email') || '-', inline: true },
+            { name: '전화번호', value: data.get('phone') || '미입력', inline: true },
+            { name: '업종', value: readable.industry || '미선택', inline: true },
+            { name: '타겟 시장', value: readable.market || '미선택', inline: true },
+            { name: '현재 상황', value: readable.situation || '미선택', inline: false },
+            { name: '추가 메시지', value: data.get('message') || '없음', inline: false }
+          ],
+          timestamp: new Date().toISOString()
+        }]
+      };
+      fetch(DISCORD_WEBHOOK, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(embed)
+      }).catch(function() {});
+    }
+
     // Form submission
     var form = document.getElementById('contactForm');
     if (form) {
       form.addEventListener('submit', function(e) {
         e.preventDefault();
+        var submitBtn = form.querySelector('button[type="submit"]');
+        submitBtn.disabled = true;
+        submitBtn.textContent = '전송 중...';
 
-        // Collect form data
         var formData = new FormData(form);
 
-        // Send via mailto as fallback (or integrate Web3Forms/other)
-        var subject = encodeURIComponent('[TradeVoy] 무료 상담 신청 - ' + formData.get('name'));
-        var body = encodeURIComponent(
-          '회사명/성함: ' + formData.get('name') + '\n' +
-          '이메일: ' + formData.get('email') + '\n' +
-          '전화: ' + (formData.get('phone') || '미입력') + '\n' +
-          '업종: ' + (answers.industry || '미선택') + '\n' +
-          '타겟시장: ' + (answers.market || '미선택') + '\n' +
-          '현재상황: ' + (answers.situation || '미선택') + '\n' +
-          '추가메시지: ' + (formData.get('message') || '없음')
-        );
+        // Add readable labels to hidden fields for Web3Forms email
+        var readable = getReadableAnswers();
+        formData.set('industry', readable.industry || '미선택');
+        formData.set('market', readable.market || '미선택');
+        formData.set('situation', readable.situation || '미선택');
 
-        window.open('mailto:contact@devpartner.org?subject=' + subject + '&body=' + body);
-        showStep(5);
+        // 1) Send to Web3Forms (email notification)
+        fetch('https://api.web3forms.com/submit', {
+          method: 'POST',
+          body: formData
+        }).then(function(res) {
+          return res.json();
+        }).then(function(data) {
+          if (data.success) {
+            // 2) Send to Discord
+            sendToDiscord(formData);
+            showStep(5);
+          } else {
+            alert('전송에 실패했습니다. 다시 시도해 주세요.');
+            submitBtn.disabled = false;
+            submitBtn.textContent = '무료 상담 신청하기';
+          }
+        }).catch(function() {
+          alert('네트워크 오류가 발생했습니다. 다시 시도해 주세요.');
+          submitBtn.disabled = false;
+          submitBtn.textContent = '무료 상담 신청하기';
+        });
       });
     }
 
