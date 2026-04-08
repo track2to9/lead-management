@@ -29,7 +29,7 @@ export interface Prospect {
   match_reason?: string;
   reasoning_chain?: string;
   approach?: string;
-  evidence_quotes: EvidenceQuote[];
+  evidence_quotes: { original: string; translated: string; relevance: string }[];
   current_suppliers: string[];
   detected_products: string[];
   company_size?: string;
@@ -38,7 +38,7 @@ export interface Prospect {
   competitive_landscape?: string;
   email_subject?: string;
   email_body?: string;
-  followup_sequence: FollowupEmail[];
+  followup_sequence: { day: number; subject: string; body: string }[];
   screenshot_url?: string;
   source?: string;
   source_type?: string;
@@ -46,26 +46,12 @@ export interface Prospect {
   created_at: string;
 }
 
-export interface EvidenceQuote {
-  original: string;
-  translated: string;
-  relevance: string;
-}
-
-export interface FollowupEmail {
-  day: number;
-  subject: string;
-  body: string;
-  label?: string;
-  angle?: string;
-}
-
 export interface Feedback {
   id: string;
   project_id: string;
   prospect_id?: string;
   user_email: string;
-  type: "general" | "prospect_accept" | "prospect_reject" | "prospect_more" | "additional_analysis";
+  type: string;
   text: string;
   timestamp: string;
 }

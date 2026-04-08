@@ -1,145 +1,103 @@
 "use client";
 
+import { useLogin, useRegister } from "@refinedev/core";
+import { Form, Input, Button, Card, Typography, Space, Divider, message } from "antd";
+import { MailOutlined, LockOutlined, BankOutlined } from "@ant-design/icons";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
+
+const { Title, Text, Link } = Typography;
 
 export default function LoginPage() {
+  const loginHook = useLogin();
+  const registerHook = useRegister();
+  const loginLoading = false;
+  const registerLoading = false;
+  const login = loginHook.mutate;
+  const register = registerHook.mutate;
   const [isSignUp, setIsSignUp] = useState(false);
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [company, setCompany] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-  const router = useRouter();
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setError("");
-    setLoading(true);
-    const supabase = createClient();
-
+  function onFinish(values: { email: string; password: string; company_name?: string }) {
     if (isSignUp) {
-      const { error } = await supabase.auth.signUp({
-        email, password,
-        options: { data: { company_name: company } },
+      register(values, {
+        onSuccess: () => message.success("인증 이메일을 확인해주세요."),
+        onError: (err) => message.error(err.message),
       });
-      if (error) { setError(error.message); setLoading(false); return; }
-      setError("인증 이메일을 확인해주세요.");
-      setLoading(false);
     } else {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) { setError(error.message); setLoading(false); return; }
-      router.push("/dashboard");
+      login(values);
     }
   }
 
   return (
-    <div className="min-h-screen bg-white flex">
-      {/* Left - branding */}
-      <div className="hidden lg:flex lg:w-[480px] bg-zinc-950 flex-col justify-between p-10">
+    <div style={{ minHeight: "100vh", display: "flex" }}>
+      {/* Left branding */}
+      <div style={{
+        width: 480, background: "#0a0a0a", color: "#fff", padding: 40,
+        display: "flex", flexDirection: "column", justifyContent: "space-between",
+      }} className="hidden lg:flex">
+        <Title level={3} style={{ color: "#fff", margin: 0 }}>
+          Trade<span style={{ color: "#f15f23" }}>Voy</span>
+        </Title>
         <div>
-          <h1 className="text-2xl font-black text-white">
-            Trade<span className="text-[#f15f23]">Voy</span>
-          </h1>
-        </div>
-        <div>
-          <h2 className="text-3xl font-bold text-white leading-tight mb-4">
-            해외 바이어,<br />
-            AI가 찾아드립니다.
-          </h2>
-          <p className="text-zinc-500 text-sm leading-relaxed">
+          <Title level={2} style={{ color: "#fff", lineHeight: 1.3 }}>
+            해외 바이어,<br />AI가 찾아드립니다.
+          </Title>
+          <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 14 }}>
             제품 정보만 알려주시면 AI가 10,000+ 소스에서<br />
             맞춤 바이어를 발굴하고, 전문가가 검증합니다.
-          </p>
-          <div className="flex gap-6 mt-8">
-            <div>
-              <div className="text-2xl font-black text-white">50+</div>
-              <div className="text-xs text-zinc-500">분석 국가</div>
-            </div>
-            <div>
-              <div className="text-2xl font-black text-white">92%</div>
-              <div className="text-xs text-zinc-500">검증 정확도</div>
-            </div>
-            <div>
-              <div className="text-2xl font-black text-white">48h</div>
-              <div className="text-xs text-zinc-500">평균 전달</div>
-            </div>
-          </div>
+          </Text>
+          <Space size={32} style={{ marginTop: 32 }}>
+            <div><div style={{ fontSize: 24, fontWeight: 900, color: "#fff" }}>50+</div><Text type="secondary">분석 국가</Text></div>
+            <div><div style={{ fontSize: 24, fontWeight: 900, color: "#fff" }}>92%</div><Text type="secondary">검증 정확도</Text></div>
+            <div><div style={{ fontSize: 24, fontWeight: 900, color: "#fff" }}>48h</div><Text type="secondary">평균 전달</Text></div>
+          </Space>
         </div>
-        <div className="text-xs text-zinc-600">
+        <Text style={{ color: "rgba(255,255,255,0.3)", fontSize: 12 }}>
           &copy; 2026 TradeVoy · trade.devpartner.org
-        </div>
+        </Text>
       </div>
 
-      {/* Right - form */}
-      <div className="flex-1 flex items-center justify-center p-8">
-        <div className="w-full max-w-[360px]">
-          <div className="lg:hidden mb-8">
-            <h1 className="text-xl font-black">
-              Trade<span className="text-[#f15f23]">Voy</span>
-            </h1>
+      {/* Right form */}
+      <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: 32 }}>
+        <Card style={{ width: 380, border: "none", boxShadow: "none" }}>
+          <div className="lg:hidden" style={{ marginBottom: 24 }}>
+            <Title level={4} style={{ margin: 0 }}>Trade<span style={{ color: "#f15f23" }}>Voy</span></Title>
           </div>
 
-          <h2 className="text-xl font-bold text-zinc-900 mb-1">
-            {isSignUp ? "회원가입" : "로그인"}
-          </h2>
-          <p className="text-sm text-zinc-400 mb-6">
+          <Title level={4}>{isSignUp ? "회원가입" : "로그인"}</Title>
+          <Text type="secondary" style={{ display: "block", marginBottom: 24 }}>
             {isSignUp ? "계정을 만들고 바이어 발굴을 시작하세요." : "고객 포털에 접속합니다."}
-          </p>
+          </Text>
 
-          <form onSubmit={handleSubmit} className="space-y-3">
-            <div>
-              <label className="text-xs font-medium text-zinc-500 block mb-1">이메일</label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="your@email.com"
-                required
-                className="w-full px-3 py-2.5 border border-zinc-200 rounded-lg text-sm focus:outline-none focus:border-zinc-400 focus:ring-1 focus:ring-zinc-200 transition"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-zinc-500 block mb-1">비밀번호</label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                required
-                className="w-full px-3 py-2.5 border border-zinc-200 rounded-lg text-sm focus:outline-none focus:border-zinc-400 focus:ring-1 focus:ring-zinc-200 transition"
-              />
-            </div>
+          <Form layout="vertical" onFinish={onFinish} autoComplete="off">
+            <Form.Item name="email" rules={[{ required: true, type: "email", message: "이메일을 입력해주세요" }]}>
+              <Input prefix={<MailOutlined />} placeholder="이메일" size="large" />
+            </Form.Item>
+            <Form.Item name="password" rules={[{ required: true, min: 6, message: "6자 이상 비밀번호" }]}>
+              <Input.Password prefix={<LockOutlined />} placeholder="비밀번호" size="large" />
+            </Form.Item>
             {isSignUp && (
-              <div>
-                <label className="text-xs font-medium text-zinc-500 block mb-1">회사명</label>
-                <input
-                  type="text"
-                  value={company}
-                  onChange={(e) => setCompany(e.target.value)}
-                  placeholder="주식회사 OOO"
-                  className="w-full px-3 py-2.5 border border-zinc-200 rounded-lg text-sm focus:outline-none focus:border-zinc-400 focus:ring-1 focus:ring-zinc-200 transition"
-                />
-              </div>
+              <Form.Item name="company_name">
+                <Input prefix={<BankOutlined />} placeholder="회사명 (선택)" size="large" />
+              </Form.Item>
             )}
-            {error && <p className="text-xs text-red-500">{error}</p>}
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full py-2.5 bg-zinc-900 text-white rounded-lg text-sm font-medium hover:bg-zinc-800 disabled:opacity-50 transition mt-2"
-            >
-              {loading ? "처리 중..." : isSignUp ? "회원가입" : "로그인"}
-            </button>
-          </form>
+            <Form.Item>
+              <Button type="primary" htmlType="submit" block size="large"
+                loading={loginLoading || registerLoading}
+                style={{ background: "#0a0a0a", borderColor: "#0a0a0a" }}>
+                {isSignUp ? "회원가입" : "로그인"}
+              </Button>
+            </Form.Item>
+          </Form>
 
-          <p className="text-center text-xs text-zinc-400 mt-4">
-            {isSignUp ? "이미 계정이 있으신가요?" : "계정이 없으신가요?"}{" "}
-            <button onClick={() => { setIsSignUp(!isSignUp); setError(""); }} className="text-zinc-700 font-medium hover:underline">
-              {isSignUp ? "로그인" : "회원가입"}
-            </button>
-          </p>
-        </div>
+          <Divider plain>
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              {isSignUp ? "이미 계정이 있으신가요?" : "계정이 없으신가요?"}
+            </Text>
+          </Divider>
+          <Button type="link" block onClick={() => setIsSignUp(!isSignUp)}>
+            {isSignUp ? "로그인" : "회원가입"}
+          </Button>
+        </Card>
       </div>
     </div>
   );
