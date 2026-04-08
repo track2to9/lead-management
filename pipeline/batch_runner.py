@@ -94,14 +94,11 @@ async def run_single_country(
                 "from_llm": generated,
             })
 
-        # Step 3: 웹 스크래핑 (lead-verifier 재사용)
+        # client_profile은 이후 모든 단계에서 필요
+        client_profile = config.get_client_profile_text()
+
+        # Step 3: 웹 스크래핑 + Step 5.5: 증거 수집 (단일 Playwright 세션)
         if scrape_fn and candidates:
-            if logger:
-                logger.log_step(country, "web_scraper", "started")
-
-            print(f"\n  🌐 {len(candidates)}개 업체 홈페이지 크롤링 중...")
-
-            # scrape_fn은 async이며 Playwright browser context 필요
             from playwright.async_api import async_playwright
 
             async with async_playwright() as p:
@@ -109,6 +106,12 @@ async def run_single_country(
                 context = await browser.new_context(
                     user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
                 )
+
+                # Step 3: 웹 스크래핑 (lead-verifier 재사용)
+                if logger:
+                    logger.log_step(country, "web_scraper", "started")
+
+                print(f"\n  🌐 {len(candidates)}개 업체 홈페이지 크롤링 중...")
 
                 for i, candidate in enumerate(candidates):
                     # scrape_company 호환 형식으로 변환
@@ -123,78 +126,67 @@ async def run_single_country(
                         candidate["verification_status"] = "error"
                     await asyncio.sleep(config.polite_delay)
 
-                await browser.close()
+                if logger:
+                    accessible = sum(1 for c in candidates if c.get("url_accessible"))
+                    logger.log_step(country, "web_scraper", "completed", {
+                        "scraped": len(candidates),
+                        "accessible": accessible,
+                    })
 
-            if logger:
-                accessible = sum(1 for c in candidates if c.get("url_accessible"))
-                logger.log_step(country, "web_scraper", "completed", {
-                    "scraped": len(candidates),
-                    "accessible": accessible,
-                })
+                # Step 4: 검증 (lead-verifier 재사용)
+                if validate_fn:
+                    for candidate in candidates:
+                        validate_fn(candidate)
 
-        # Step 4: 검증 (lead-verifier 재사용)
-        if validate_fn:
-            for candidate in candidates:
-                validate_fn(candidate)
+                # Step 5: LLM 분석
+                if logger:
+                    logger.log_step(country, "analyzer", "started")
 
-        # Step 5: LLM 분석
-        if logger:
-            logger.log_step(country, "analyzer", "started")
+                print(f"\n  🤖 업체 분석 중...")
 
-        print(f"\n  🤖 업체 분석 중...")
-        client_profile = config.get_client_profile_text()
+                for candidate in candidates:
+                    page_text = candidate.get("page_text", "")
+                    # --no-scrape 모드에서도 이름/URL/source 정보만으로 분석 시도
+                    if not page_text and not candidate.get("url_accessible", False):
+                        # 최소한 업체명과 소스 정보가 있으면 LLM에 분석 요청
+                        name = candidate.get("name", "")
+                        source = candidate.get("source", "")
+                        if name:
+                            page_text = f"Company: {name}. Source: {source}. URL: {candidate.get('url', 'N/A')}. Country: {country}."
+                    if page_text:
+                        await analyze_company(candidate, page_text, client_profile, llm)
+                    else:
+                        candidate["analysis"] = {
+                            "sells_relevant_product": False,
+                            "confidence": "low",
+                            "match_score": 0,
+                            "summary": "홈페이지 접속 불가 / 정보 없음",
+                            "match_reason": "분석 불가",
+                            "approach": "",
+                            "priority": "low",
+                            "detected_products": [],
+                            "score_breakdown": {
+                                "product_fit": {"score": 0, "reason": ""},
+                                "buying_signal": {"score": 0, "reason": ""},
+                                "company_capability": {"score": 0, "reason": ""},
+                                "accessibility": {"score": 0, "reason": ""},
+                                "strategic_value": {"score": 0, "reason": ""},
+                            },
+                        }
 
-        for candidate in candidates:
-            page_text = candidate.get("page_text", "")
-            # --no-scrape 모드에서도 이름/URL/source 정보만으로 분석 시도
-            if not page_text and not candidate.get("url_accessible", False):
-                # 최소한 업체명과 소스 정보가 있으면 LLM에 분석 요청
-                name = candidate.get("name", "")
-                source = candidate.get("source", "")
-                if name:
-                    page_text = f"Company: {name}. Source: {source}. URL: {candidate.get('url', 'N/A')}. Country: {country}."
-            if page_text:
-                await analyze_company(candidate, page_text, client_profile, llm)
-            else:
-                candidate["analysis"] = {
-                    "sells_relevant_product": False,
-                    "confidence": "low",
-                    "match_score": 0,
-                    "summary": "홈페이지 접속 불가 / 정보 없음",
-                    "match_reason": "분석 불가",
-                    "approach": "",
-                    "priority": "low",
-                    "detected_products": [],
-                    "score_breakdown": {
-                        "product_fit": {"score": 0, "reason": ""},
-                        "buying_signal": {"score": 0, "reason": ""},
-                        "company_capability": {"score": 0, "reason": ""},
-                        "accessibility": {"score": 0, "reason": ""},
-                        "strategic_value": {"score": 0, "reason": ""},
-                    },
-                }
+                if logger:
+                    analyzed = sum(1 for c in candidates if c.get("analysis", {}).get("match_score", 0) > 0)
+                    logger.log_step(country, "analyzer", "completed", {
+                        "analyzed": analyzed,
+                        "high_priority": sum(1 for c in candidates if c.get("analysis", {}).get("priority") == "high"),
+                        "medium_priority": sum(1 for c in candidates if c.get("analysis", {}).get("priority") == "medium"),
+                    })
 
-        if logger:
-            analyzed = sum(1 for c in candidates if c.get("analysis", {}).get("match_score", 0) > 0)
-            logger.log_step(country, "analyzer", "completed", {
-                "analyzed": analyzed,
-                "high_priority": sum(1 for c in candidates if c.get("analysis", {}).get("priority") == "high"),
-                "medium_priority": sum(1 for c in candidates if c.get("analysis", {}).get("priority") == "medium"),
-            })
+                # Step 5.5: 증거 수집 (SNS + 웹 크롤링) — 동일 브라우저 세션 재사용
+                if logger:
+                    logger.log_step(country, "evidence_collector", "started")
 
-        # Step 5.5: 증거 수집 (SNS + 웹 크롤링)
-        if scrape_fn and candidates:
-            if logger:
-                logger.log_step(country, "evidence_collector", "started")
-
-            print(f"\n  🔍 증거 수집 중...")
-            from playwright.async_api import async_playwright
-
-            async with async_playwright() as p:
-                browser = await p.chromium.launch(headless=True)
-                context = await browser.new_context(
-                    user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
-                )
+                print(f"\n  🔍 증거 수집 중...")
 
                 for candidate in candidates:
                     score = candidate.get("analysis", {}).get("match_score", 0)
@@ -218,6 +210,57 @@ async def run_single_country(
                 total_evidence = sum(len(c.get("evidence", [])) for c in candidates)
                 logger.log_step(country, "evidence_collector", "completed", {
                     "total_evidence": total_evidence,
+                })
+
+        else:
+            # scrape_fn 없는 경우: Step 4, 5를 여기서 실행
+            # Step 4: 검증 (lead-verifier 재사용)
+            if validate_fn:
+                for candidate in candidates:
+                    validate_fn(candidate)
+
+            # Step 5: LLM 분석
+            if logger:
+                logger.log_step(country, "analyzer", "started")
+
+            print(f"\n  🤖 업체 분석 중...")
+
+            for candidate in candidates:
+                page_text = candidate.get("page_text", "")
+                # --no-scrape 모드에서도 이름/URL/source 정보만으로 분석 시도
+                if not page_text and not candidate.get("url_accessible", False):
+                    # 최소한 업체명과 소스 정보가 있으면 LLM에 분석 요청
+                    name = candidate.get("name", "")
+                    source = candidate.get("source", "")
+                    if name:
+                        page_text = f"Company: {name}. Source: {source}. URL: {candidate.get('url', 'N/A')}. Country: {country}."
+                if page_text:
+                    await analyze_company(candidate, page_text, client_profile, llm)
+                else:
+                    candidate["analysis"] = {
+                        "sells_relevant_product": False,
+                        "confidence": "low",
+                        "match_score": 0,
+                        "summary": "홈페이지 접속 불가 / 정보 없음",
+                        "match_reason": "분석 불가",
+                        "approach": "",
+                        "priority": "low",
+                        "detected_products": [],
+                        "score_breakdown": {
+                            "product_fit": {"score": 0, "reason": ""},
+                            "buying_signal": {"score": 0, "reason": ""},
+                            "company_capability": {"score": 0, "reason": ""},
+                            "accessibility": {"score": 0, "reason": ""},
+                            "strategic_value": {"score": 0, "reason": ""},
+                        },
+                    }
+
+            if logger:
+                analyzed = sum(1 for c in candidates if c.get("analysis", {}).get("match_score", 0) > 0)
+                logger.log_step(country, "analyzer", "completed", {
+                    "analyzed": analyzed,
+                    "high_priority": sum(1 for c in candidates if c.get("analysis", {}).get("priority") == "high"),
+                    "medium_priority": sum(1 for c in candidates if c.get("analysis", {}).get("priority") == "medium"),
                 })
 
         # Step 6: 이메일 초안
