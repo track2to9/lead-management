@@ -3,10 +3,6 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
 
 export default function LoginPage() {
   const [isSignUp, setIsSignUp] = useState(false);
@@ -21,117 +17,130 @@ export default function LoginPage() {
     e.preventDefault();
     setError("");
     setLoading(true);
-
     const supabase = createClient();
 
     if (isSignUp) {
       const { error } = await supabase.auth.signUp({
-        email,
-        password,
+        email, password,
         options: { data: { company_name: company } },
       });
-      if (error) {
-        setError(error.message);
-        setLoading(false);
-        return;
-      }
+      if (error) { setError(error.message); setLoading(false); return; }
       setError("인증 이메일을 확인해주세요.");
       setLoading(false);
     } else {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-      if (error) {
-        setError(error.message);
-        setLoading(false);
-        return;
-      }
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) { setError(error.message); setLoading(false); return; }
       router.push("/dashboard");
     }
   }
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center p-4">
-      <Card className="w-full max-w-[400px] border-zinc-800 bg-zinc-950">
-        <CardHeader className="space-y-1 pb-4">
+    <div className="min-h-screen bg-white flex">
+      {/* Left - branding */}
+      <div className="hidden lg:flex lg:w-[480px] bg-zinc-950 flex-col justify-between p-10">
+        <div>
           <h1 className="text-2xl font-black text-white">
             Trade<span className="text-[#f15f23]">Voy</span>
           </h1>
-          <p className="text-sm text-zinc-500">
-            고객 포털 — 분석 결과 확인 및 피드백
+        </div>
+        <div>
+          <h2 className="text-3xl font-bold text-white leading-tight mb-4">
+            해외 바이어,<br />
+            AI가 찾아드립니다.
+          </h2>
+          <p className="text-zinc-500 text-sm leading-relaxed">
+            제품 정보만 알려주시면 AI가 10,000+ 소스에서<br />
+            맞춤 바이어를 발굴하고, 전문가가 검증합니다.
           </p>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="email" className="text-zinc-400">
-                이메일
-              </Label>
-              <Input
-                id="email"
+          <div className="flex gap-6 mt-8">
+            <div>
+              <div className="text-2xl font-black text-white">50+</div>
+              <div className="text-xs text-zinc-500">분석 국가</div>
+            </div>
+            <div>
+              <div className="text-2xl font-black text-white">92%</div>
+              <div className="text-xs text-zinc-500">검증 정확도</div>
+            </div>
+            <div>
+              <div className="text-2xl font-black text-white">48h</div>
+              <div className="text-xs text-zinc-500">평균 전달</div>
+            </div>
+          </div>
+        </div>
+        <div className="text-xs text-zinc-600">
+          &copy; 2026 TradeVoy · trade.devpartner.org
+        </div>
+      </div>
+
+      {/* Right - form */}
+      <div className="flex-1 flex items-center justify-center p-8">
+        <div className="w-full max-w-[360px]">
+          <div className="lg:hidden mb-8">
+            <h1 className="text-xl font-black">
+              Trade<span className="text-[#f15f23]">Voy</span>
+            </h1>
+          </div>
+
+          <h2 className="text-xl font-bold text-zinc-900 mb-1">
+            {isSignUp ? "회원가입" : "로그인"}
+          </h2>
+          <p className="text-sm text-zinc-400 mb-6">
+            {isSignUp ? "계정을 만들고 바이어 발굴을 시작하세요." : "고객 포털에 접속합니다."}
+          </p>
+
+          <form onSubmit={handleSubmit} className="space-y-3">
+            <div>
+              <label className="text-xs font-medium text-zinc-500 block mb-1">이메일</label>
+              <input
                 type="email"
-                placeholder="your@email.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                placeholder="your@email.com"
                 required
-                className="bg-zinc-900 border-zinc-800 text-white"
+                className="w-full px-3 py-2.5 border border-zinc-200 rounded-lg text-sm focus:outline-none focus:border-zinc-400 focus:ring-1 focus:ring-zinc-200 transition"
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="password" className="text-zinc-400">
-                비밀번호
-              </Label>
-              <Input
-                id="password"
+            <div>
+              <label className="text-xs font-medium text-zinc-500 block mb-1">비밀번호</label>
+              <input
                 type="password"
-                placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
                 required
-                className="bg-zinc-900 border-zinc-800 text-white"
+                className="w-full px-3 py-2.5 border border-zinc-200 rounded-lg text-sm focus:outline-none focus:border-zinc-400 focus:ring-1 focus:ring-zinc-200 transition"
               />
             </div>
             {isSignUp && (
-              <div className="space-y-2">
-                <Label htmlFor="company" className="text-zinc-400">
-                  회사명
-                </Label>
-                <Input
-                  id="company"
+              <div>
+                <label className="text-xs font-medium text-zinc-500 block mb-1">회사명</label>
+                <input
                   type="text"
-                  placeholder="주식회사 OOO"
                   value={company}
                   onChange={(e) => setCompany(e.target.value)}
-                  className="bg-zinc-900 border-zinc-800 text-white"
+                  placeholder="주식회사 OOO"
+                  className="w-full px-3 py-2.5 border border-zinc-200 rounded-lg text-sm focus:outline-none focus:border-zinc-400 focus:ring-1 focus:ring-zinc-200 transition"
                 />
               </div>
             )}
-            {error && (
-              <p className="text-sm text-red-500">{error}</p>
-            )}
-            <Button
+            {error && <p className="text-xs text-red-500">{error}</p>}
+            <button
               type="submit"
               disabled={loading}
-              className="w-full bg-[#f15f23] hover:bg-[#ff7a45] text-white font-bold"
+              className="w-full py-2.5 bg-zinc-900 text-white rounded-lg text-sm font-medium hover:bg-zinc-800 disabled:opacity-50 transition mt-2"
             >
               {loading ? "처리 중..." : isSignUp ? "회원가입" : "로그인"}
-            </Button>
+            </button>
           </form>
-          <p className="text-center text-sm text-zinc-500 mt-4">
+
+          <p className="text-center text-xs text-zinc-400 mt-4">
             {isSignUp ? "이미 계정이 있으신가요?" : "계정이 없으신가요?"}{" "}
-            <button
-              onClick={() => {
-                setIsSignUp(!isSignUp);
-                setError("");
-              }}
-              className="text-[#f15f23] hover:underline"
-            >
+            <button onClick={() => { setIsSignUp(!isSignUp); setError(""); }} className="text-zinc-700 font-medium hover:underline">
               {isSignUp ? "로그인" : "회원가입"}
             </button>
           </p>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 }

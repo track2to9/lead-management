@@ -1,5 +1,4 @@
 import { createServerSupabase } from "@/lib/supabase/server";
-import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
 import type { Project } from "@/lib/types";
@@ -14,94 +13,110 @@ export default async function DashboardPage() {
     .eq("user_id", user?.id)
     .order("created_at", { ascending: false });
 
+  const hasProjects = projects && projects.length > 0;
+
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-extrabold">내 프로젝트</h1>
+      {/* Page header */}
+      <div className="flex items-center justify-between mb-8">
+        <div>
+          <h1 className="text-xl font-bold text-zinc-900">프로젝트</h1>
+          <p className="text-sm text-zinc-400 mt-0.5">
+            {hasProjects ? `${projects.length}개의 분석 프로젝트` : "해외 바이어 발굴을 시작하세요"}
+          </p>
+        </div>
         <Link
           href="/dashboard/new"
-          className="px-5 py-2.5 bg-[#f15f23] text-white rounded-lg font-bold text-sm hover:bg-[#ff7a45] transition"
+          className="inline-flex items-center gap-1.5 px-4 py-2 bg-zinc-900 text-white rounded-lg text-sm font-medium hover:bg-zinc-800 transition"
         >
-          + 새 분석 요청
+          <span className="text-base leading-none">+</span>
+          새 분석 요청
         </Link>
       </div>
 
-      {!projects || projects.length === 0 ? (
-        <div className="mt-8">
-          {/* Empty state */}
-          <Card className="border-dashed border-2 border-zinc-200">
-            <CardContent className="py-16 text-center">
-              <div className="w-16 h-16 bg-orange-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                <span className="text-3xl">🔍</span>
-              </div>
-              <h3 className="text-lg font-bold mb-2">아직 분석 요청이 없습니다</h3>
-              <p className="text-sm text-zinc-500 mb-6 max-w-md mx-auto">
-                해외 바이어 발굴을 시작하려면 분석을 요청해주세요.<br />
-                제품 정보와 타겟 시장을 알려주시면 AI가 맞춤 바이어를 찾아드립니다.
-              </p>
-              <Link
-                href="/dashboard/new"
-                className="inline-flex items-center px-6 py-3 bg-[#f15f23] text-white rounded-lg font-bold hover:bg-[#ff7a45] transition"
-              >
-                첫 분석 요청하기 →
-              </Link>
-            </CardContent>
-          </Card>
+      {!hasProjects ? (
+        /* Empty state */
+        <div>
+          <div className="bg-white rounded-xl border border-zinc-200 p-12 text-center mb-8">
+            <div className="w-12 h-12 bg-zinc-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <span className="text-xl">🔍</span>
+            </div>
+            <h3 className="text-base font-semibold text-zinc-800 mb-1.5">아직 프로젝트가 없습니다</h3>
+            <p className="text-sm text-zinc-400 mb-6 max-w-sm mx-auto">
+              제품과 타겟 시장 정보를 입력하면<br />AI가 맞춤 바이어를 찾아드립니다.
+            </p>
+            <Link
+              href="/dashboard/new"
+              className="inline-flex items-center px-5 py-2.5 bg-zinc-900 text-white rounded-lg text-sm font-medium hover:bg-zinc-800 transition"
+            >
+              첫 분석 요청하기 →
+            </Link>
+          </div>
 
-          {/* How it works */}
-          <div className="mt-8 grid grid-cols-1 md:grid-cols-4 gap-4">
+          {/* Steps guide */}
+          <div className="grid grid-cols-4 gap-3">
             {[
-              { step: "1", title: "분석 요청", desc: "제품, 타겟 고객, 국가 정보를 입력합니다" },
-              { step: "2", title: "AI 발굴", desc: "AI가 바이어를 찾고 전문가가 검증합니다" },
-              { step: "3", title: "결과 확인", desc: "매칭 점수, 근거, 접근 전략을 확인합니다" },
-              { step: "4", title: "피드백", desc: "승인/제외/추가 요청으로 리스트를 개선합니다" },
-            ].map((item) => (
-              <Card key={item.step} className="bg-zinc-50 border-none">
-                <CardContent className="pt-5 pb-4">
-                  <div className="w-8 h-8 bg-[#f15f23] text-white rounded-full flex items-center justify-center font-bold text-sm mb-3">
-                    {item.step}
-                  </div>
-                  <h4 className="font-bold text-sm mb-1">{item.title}</h4>
-                  <p className="text-xs text-zinc-500">{item.desc}</p>
-                </CardContent>
-              </Card>
+              { n: "01", title: "분석 요청", desc: "제품, 타겟 고객, 국가 입력", color: "bg-[#f15f23]" },
+              { n: "02", title: "AI 발굴", desc: "10,000+ 소스에서 바이어 탐색", color: "bg-zinc-700" },
+              { n: "03", title: "결과 확인", desc: "매칭 점수, 근거, 전략 확인", color: "bg-zinc-700" },
+              { n: "04", title: "피드백", desc: "승인/제외로 리스트 개선", color: "bg-zinc-700" },
+            ].map((s) => (
+              <div key={s.n} className="bg-white rounded-xl border border-zinc-200 p-5">
+                <div className={`w-7 h-7 ${s.color} text-white rounded-md flex items-center justify-center text-xs font-bold mb-3`}>
+                  {s.n}
+                </div>
+                <h4 className="text-sm font-semibold text-zinc-800 mb-0.5">{s.title}</h4>
+                <p className="text-xs text-zinc-400 leading-relaxed">{s.desc}</p>
+              </div>
             ))}
           </div>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        /* Project table (Mercury style) */
+        <div className="bg-white rounded-xl border border-zinc-200 overflow-hidden">
+          {/* Table header */}
+          <div className="grid grid-cols-[1fr_120px_80px_80px_80px_100px] gap-4 px-5 py-3 border-b border-zinc-100 text-xs font-semibold text-zinc-400 uppercase tracking-wider">
+            <div>프로젝트</div>
+            <div>국가</div>
+            <div className="text-right">분석</div>
+            <div className="text-right">HIGH</div>
+            <div className="text-right">이메일</div>
+            <div className="text-right">상태</div>
+          </div>
+
+          {/* Table rows */}
           {(projects as Project[]).map((project) => (
-            <Link key={project.id} href={`/dashboard/project/${project.id}`}>
-              <Card className="hover:border-[#f15f23] hover:shadow-md transition cursor-pointer">
-                <CardContent className="pt-6">
-                  <div className="flex justify-between items-start mb-2">
-                    <h3 className="font-bold text-lg">{project.name}</h3>
-                    <Badge
-                      variant={project.status === "active" ? "default" : "secondary"}
-                      className={project.status === "active" ? "bg-green-100 text-green-700" : ""}
-                    >
-                      {project.status === "active" ? "진행 중" : project.status === "reviewing" ? "검토 중" : "완료"}
-                    </Badge>
-                  </div>
-                  <p className="text-sm text-zinc-500 mb-4">
-                    {project.created_at?.split("T")[0]} · {project.countries} · {project.product}
-                  </p>
-                  <div className="flex gap-6">
-                    <div className="text-center">
-                      <div className="text-2xl font-black text-[#f15f23]">{project.total_companies}</div>
-                      <div className="text-xs text-zinc-500">분석</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-2xl font-black text-[#f15f23]">{project.high_count}</div>
-                      <div className="text-xs text-zinc-500">HIGH</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-2xl font-black text-[#f15f23]">{project.emails_drafted}</div>
-                      <div className="text-xs text-zinc-500">이메일</div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+            <Link
+              key={project.id}
+              href={`/dashboard/project/${project.id}`}
+              className="grid grid-cols-[1fr_120px_80px_80px_80px_100px] gap-4 px-5 py-4 border-b border-zinc-50 hover:bg-zinc-50 transition items-center group"
+            >
+              <div>
+                <div className="text-sm font-semibold text-zinc-800 group-hover:text-[#f15f23] transition">
+                  {project.name}
+                </div>
+                <div className="text-xs text-zinc-400 mt-0.5">
+                  {project.product} · {project.created_at?.split("T")[0]}
+                </div>
+              </div>
+              <div className="text-sm text-zinc-600">{project.countries}</div>
+              <div className="text-sm font-semibold text-zinc-800 text-right">{project.total_companies}</div>
+              <div className="text-sm font-semibold text-[#f15f23] text-right">{project.high_count}</div>
+              <div className="text-sm text-zinc-600 text-right">{project.emails_drafted}</div>
+              <div className="text-right">
+                <Badge
+                  variant="outline"
+                  className={
+                    project.status === "active"
+                      ? "border-green-200 bg-green-50 text-green-700 text-xs"
+                      : project.status === "reviewing"
+                      ? "border-yellow-200 bg-yellow-50 text-yellow-700 text-xs"
+                      : "border-zinc-200 bg-zinc-50 text-zinc-500 text-xs"
+                  }
+                >
+                  {project.status === "active" ? "진행 중" : project.status === "reviewing" ? "검토 중" : "완료"}
+                </Badge>
+              </div>
             </Link>
           ))}
         </div>
