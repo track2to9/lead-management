@@ -77,11 +77,26 @@ CREATE TABLE exhibitions (
   action_suggestion TEXT
 );
 
+-- 증거 자료 (SNS, 웹사이트 등에서 수집한 디지털 증거)
+CREATE TABLE evidence (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  prospect_id UUID REFERENCES prospects(id) ON DELETE CASCADE,
+  source_url TEXT NOT NULL,
+  source_type TEXT NOT NULL DEFAULT 'website',  -- website, linkedin, facebook, instagram, x, forum, news
+  screenshot_path TEXT,       -- Supabase Storage 경로
+  text_excerpt TEXT,          -- 원문 발췌
+  text_translated TEXT,       -- 한국어 번역
+  related_scores TEXT[] DEFAULT '{}',  -- 관련 평가 항목명 배열
+  collected_at TIMESTAMPTZ DEFAULT NOW(),
+  content_date DATE           -- 원본 콘텐츠 게시 날짜
+);
+
 -- RLS (Row Level Security) 활성화
 ALTER TABLE projects ENABLE ROW LEVEL SECURITY;
 ALTER TABLE prospects ENABLE ROW LEVEL SECURITY;
 ALTER TABLE feedback ENABLE ROW LEVEL SECURITY;
 ALTER TABLE exhibitions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE evidence ENABLE ROW LEVEL SECURITY;
 
 -- 정책: 사용자는 자신의 프로젝트만 볼 수 있음
 CREATE POLICY "Users can view own projects" ON projects
@@ -107,8 +122,18 @@ CREATE POLICY "Users can view own exhibitions" ON exhibitions
     project_id IN (SELECT id FROM projects WHERE user_id = auth.uid())
   );
 
+CREATE POLICY "Users can view own evidence" ON evidence
+  FOR SELECT USING (
+    prospect_id IN (
+      SELECT p.id FROM prospects p
+      JOIN projects pr ON p.project_id = pr.id
+      WHERE pr.user_id = auth.uid()
+    )
+  );
+
 -- 인덱스
 CREATE INDEX idx_projects_user ON projects(user_id);
 CREATE INDEX idx_prospects_project ON prospects(project_id);
 CREATE INDEX idx_prospects_score ON prospects(match_score DESC);
 CREATE INDEX idx_feedback_project ON feedback(project_id);
+CREATE INDEX idx_evidence_prospect ON evidence(prospect_id);
