@@ -100,7 +100,7 @@ async def crawl_sns_page(
         # Build a safe filename
         safe_name = re.sub(r"[^\w\-]", "_", company_name) if company_name else "unknown"
         timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-        filename = f"{safe_name}_{sns_type}_{timestamp}.webp"
+        filename = f"{safe_name}_{sns_type}_{timestamp}.png"
         screenshot_path = os.path.join(screenshot_dir, filename)
 
         os.makedirs(screenshot_dir, exist_ok=True)
@@ -115,11 +115,10 @@ async def crawl_sns_page(
             # Wait for dynamic content to settle
             await page.wait_for_timeout(2_000)
 
-            # Screenshot — Playwright's jpeg with quality=80 as a webp-named file
+            # Screenshot — PNG format (Playwright reliably supports png)
             await page.screenshot(
                 path=screenshot_path,
-                type="jpeg",
-                quality=80,
+                type="png",
                 full_page=False,
             )
 

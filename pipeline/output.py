@@ -4,6 +4,13 @@
 - Excel 출력 (lead-verifier/excel_writer.py 패턴 재사용)
 - Zoho CRM 호환 컬럼 포맷
 - 요약 통계
+
+TODO (Supabase persistence): Evidence items collected in candidate["evidence"] are
+currently included in the CSV/Excel output as a summary string in the Notes column.
+They are NOT yet written to the Supabase `evidence` table. When the pipeline gains
+Supabase integration, add an upsert loop here (or in batch_runner) to persist each
+evidence item with its candidate FK, source_url, source_type, screenshot_path,
+text_excerpt, text_translated, related_scores, and content_date.
 """
 import csv
 import os
@@ -11,6 +18,30 @@ from datetime import datetime
 
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+
+
+# ─── 헬퍼 ────────────────────────────────────────────────────
+
+def _build_notes(company: dict) -> str:
+    """
+    Build a human-readable notes string for CSV/Excel output.
+
+    Combines any pipeline warning with a summary of collected evidence items.
+    Evidence is not yet persisted to Supabase — see the module-level TODO above.
+    """
+    parts: list[str] = []
+
+    warning = company.get("_warning", "")
+    if warning:
+        parts.append(warning)
+
+    evidence: list[dict] = company.get("evidence") or []
+    if evidence:
+        source_types = [item.get("source_type", "") for item in evidence if item.get("source_type")]
+        types_str = ", ".join(source_types) if source_types else "unknown"
+        parts.append(f"[evidence: {len(evidence)}건 / {types_str}]")
+
+    return " | ".join(parts)
 
 
 # ─── CSV 출력 ───────────────────────────────────────────────
@@ -151,7 +182,7 @@ def write_csv(results: list[dict], output_path: str, config_summary: dict | None
                 "; ".join(e.get("name", "") for e in exhibitions[:3]),
                 # 메타
                 c.get("source_type", "unknown"),
-                c.get("_warning", ""),
+                _build_notes(c),
             ]
             writer.writerow(row)
 
@@ -245,7 +276,7 @@ def write_excel(results: list[dict], output_path: str, config_summary: dict | No
             analysis.get("competitive_landscape", ""),
             status,
             email_draft.get("subject", ""),
-            c.get("_warning", ""),
+            _build_notes(c),
         ]
 
         for col, value in enumerate(data, 1):

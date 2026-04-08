@@ -79,7 +79,7 @@ async def collect_evidence(
     if homepage_screenshot:
         homepage_item = {
             "source_url": company.get("url") or "",
-            "source_type": "homepage",
+            "source_type": "website",
             "screenshot_path": homepage_screenshot,
             "text_excerpt": page_text[:_MAX_TEXT_CHARS],
             "content_date": None,

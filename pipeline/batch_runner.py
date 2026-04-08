@@ -165,6 +165,13 @@ async def run_single_country(
                     "approach": "",
                     "priority": "low",
                     "detected_products": [],
+                    "score_breakdown": {
+                        "product_fit": {"score": 0, "reason": ""},
+                        "buying_signal": {"score": 0, "reason": ""},
+                        "company_capability": {"score": 0, "reason": ""},
+                        "accessibility": {"score": 0, "reason": ""},
+                        "strategic_value": {"score": 0, "reason": ""},
+                    },
                 }
 
         if logger:
