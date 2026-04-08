@@ -6,7 +6,7 @@ CREATE TABLE projects (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
-  status TEXT DEFAULT 'active' CHECK (status IN ('active', 'reviewing', 'completed')),
+  status TEXT DEFAULT 'active' CHECK (status IN ('active', 'analyzing', 'results_ready', 'refining', 'completed')),
   client_name TEXT,
   product TEXT,
   countries TEXT,
@@ -17,6 +17,8 @@ CREATE TABLE projects (
   report_url TEXT,           -- Supabase Storage URL for HTML report
   excel_url TEXT,            -- Supabase Storage URL for Excel
   score_weights JSONB DEFAULT '{"product_fit": 30, "buying_signal": 25, "company_capability": 20, "accessibility": 15, "strategic_value": 10}',
+  refinement_conditions JSONB DEFAULT '[]',  -- 고객이 추가한 분석 조건
+  refinement_round INTEGER DEFAULT 1,        -- 현재 분석 회차
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -51,6 +53,7 @@ CREATE TABLE prospects (
   client_feedback TEXT,      -- 고객이 남긴 피드백
   feedback_status TEXT DEFAULT 'pending' CHECK (feedback_status IN ('pending', 'accepted', 'rejected', 'needs_more')),
   score_breakdown JSONB DEFAULT '{}',  -- 항목별 점수 {product_fit: {score, reason}, ...}
+  round INTEGER DEFAULT 1,  -- 이 결과가 나온 분석 회차
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
