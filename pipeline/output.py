@@ -56,6 +56,11 @@ def write_csv(results: list[dict], output_path: str, config_summary: dict | None
             "Phone",            # 전화번호
             "Source",           # 데이터 출처
             "Match Score",      # 매칭 점수
+            "Product Fit Score",
+            "Buying Signal Score",
+            "Company Capability Score",
+            "Accessibility Score",
+            "Strategic Value Score",
             "Priority",         # 우선순위
             "Match Reason",     # 매칭 사유
             "Approach Strategy", # 접근 전략
@@ -110,6 +115,15 @@ def write_csv(results: list[dict], output_path: str, config_summary: dict | None
                 "; ".join(phones[:3]) if phones else "",
                 c.get("source", ""),
                 analysis.get("match_score", 0),
+                *(
+                    lambda bd: [
+                        bd.get("product_fit", {}).get("score", ""),
+                        bd.get("buying_signal", {}).get("score", ""),
+                        bd.get("company_capability", {}).get("score", ""),
+                        bd.get("accessibility", {}).get("score", ""),
+                        bd.get("strategic_value", {}).get("score", ""),
+                    ]
+                )(analysis.get("score_breakdown", {})),
                 analysis.get("priority", ""),
                 analysis.get("match_reason", ""),
                 analysis.get("approach", ""),
@@ -182,7 +196,7 @@ def write_excel(results: list[dict], output_path: str, config_summary: dict | No
     )
 
     headers = [
-        "No", "국가", "매칭점수", "우선순위", "업체명", "홈페이지",
+        "No", "국가", "매칭점수", "제품적합도", "구매시그널", "기업역량", "접근성", "전략가치", "우선순위", "업체명", "홈페이지",
         "이메일", "전화번호", "데이터 출처", "소스 유형",
         "회사 요약", "매칭 사유", "접근 전략", "취급 제품",
         "현재 공급업체", "회사 규모", "의사결정권자", "접근 타이밍", "경쟁 환경",
@@ -203,10 +217,16 @@ def write_excel(results: list[dict], output_path: str, config_summary: dict | No
 
         status = validation.get("overall", c.get("verification_status", "UNVERIFIED"))
 
+        _bd = analysis.get("score_breakdown", {})
         data = [
             row_idx - 1,
             c.get("_country", ""),
             analysis.get("match_score", 0),
+            _bd.get("product_fit", {}).get("score", ""),
+            _bd.get("buying_signal", {}).get("score", ""),
+            _bd.get("company_capability", {}).get("score", ""),
+            _bd.get("accessibility", {}).get("score", ""),
+            _bd.get("strategic_value", {}).get("score", ""),
             analysis.get("priority", ""),
             c.get("name", ""),
             c.get("url", ""),
@@ -242,8 +262,8 @@ def write_excel(results: list[dict], output_path: str, config_summary: dict | No
             for col in range(1, len(headers) + 1):
                 ws.cell(row=row_idx, column=col).fill = medium_fill
 
-        # 검증 상태 색상 (20번째 컬럼: 인텔리전스 5개 추가됨)
-        status_col = 20
+        # 검증 상태 색상 (25번째 컬럼: 인텔리전스 5개 + 점수 세분화 5개 추가됨)
+        status_col = 25
         status_cell = ws.cell(row=row_idx, column=status_col)
         if status == "verified":
             status_cell.fill = verified_fill
@@ -252,8 +272,8 @@ def write_excel(results: list[dict], output_path: str, config_summary: dict | No
         elif status in ("no_email_found", "UNVERIFIED"):
             status_cell.fill = warning_fill
 
-    # 컬럼 너비 (인텔리전스 5개 컬럼 추가)
-    widths = [5, 10, 8, 8, 30, 35, 30, 18, 20, 12, 40, 40, 40, 30, 25, 12, 20, 25, 30, 12, 35, 20]
+    # 컬럼 너비 (인텔리전스 5개 + 점수 세분화 5개 컬럼 추가)
+    widths = [5, 10, 8, 8, 8, 8, 8, 8, 8, 30, 35, 30, 18, 20, 12, 40, 40, 40, 30, 25, 12, 20, 25, 30, 12, 35, 20]
     for i, w in enumerate(widths):
         col_letter = chr(65 + i) if i < 26 else chr(64 + i // 26) + chr(65 + i % 26)
         ws.column_dimensions[col_letter].width = w
