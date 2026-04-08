@@ -1,12 +1,14 @@
 "use client";
 
-import { useOne, useList } from "@refinedev/core";
+import { useOne, useList, useUpdate } from "@refinedev/core";
 import { useParams } from "next/navigation";
 import { Table, Tag, Card, Statistic, Tabs, Button, Input, Breadcrumb, Typography, Space, Badge } from "antd";
 import { HomeOutlined, SearchOutlined, CheckCircleOutlined } from "@ant-design/icons";
 import Link from "next/link";
-import { useState } from "react";
-import type { Project, Prospect, Feedback, Exhibition } from "@/lib/types";
+import { useState, useEffect } from "react";
+import ScoreWeightsEditor from "@/components/ScoreWeightsEditor";
+import { DEFAULT_SCORE_WEIGHTS, SCORE_DIMENSION_LABELS } from "@/lib/types";
+import type { Project, Prospect, Feedback, Exhibition, ScoreWeights, ScoreBreakdown } from "@/lib/types";
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -14,6 +16,8 @@ export default function ProjectDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [searchText, setSearchText] = useState("");
   const [feedbackNote, setFeedbackNote] = useState("");
+  const [weights, setWeights] = useState<ScoreWeights>(DEFAULT_SCORE_WEIGHTS);
+  const { mutate: updateProject } = useUpdate();
 
   const { query: pq } = useOne<Project>({ resource: "projects", id });
   const { query: prq } = useList<Prospect>({
@@ -39,9 +43,33 @@ export default function ProjectDetailPage() {
   const feedback = fq.data?.data || [];
   const exhibitions = eq.data?.data || [];
 
+  useEffect(() => {
+    if (project?.score_weights) {
+      setWeights(project.score_weights);
+    }
+  }, [project?.score_weights]);
+
   const filtered = prospects.filter((p) =>
     !searchText || p.name.toLowerCase().includes(searchText.toLowerCase())
   );
+
+  function computeWeightedScore(breakdown: ScoreBreakdown | undefined, w: ScoreWeights): number {
+    if (!breakdown) return 0;
+    const dims = Object.keys(w) as (keyof ScoreWeights)[];
+    const totalWeight = dims.reduce((sum, k) => sum + w[k], 0);
+    if (totalWeight === 0) return 0;
+    const weightedSum = dims.reduce((sum, k) => {
+      const score = breakdown[k]?.score || 0;
+      return sum + score * w[k];
+    }, 0);
+    return Math.round(weightedSum / totalWeight);
+  }
+
+  const sortedProspects = [...filtered].sort((a, b) => {
+    const scoreA = a.score_breakdown ? computeWeightedScore(a.score_breakdown, weights) : a.match_score;
+    const scoreB = b.score_breakdown ? computeWeightedScore(b.score_breakdown, weights) : b.match_score;
+    return scoreB - scoreA;
+  });
 
   const stats = {
     total: prospects.length,
@@ -58,9 +86,23 @@ export default function ProjectDetailPage() {
       label: `바이어 리스트 (${prospects.length})`,
       children: (
         <div>
+          <Card size="small" title="매칭 가중치 설정" style={{ marginBottom: 16 }}
+            extra={<Text type="secondary" style={{ fontSize: 11 }}>가중치를 조절하면 리스트가 즉시 재정렬됩니다</Text>}>
+            <ScoreWeightsEditor
+              weights={weights}
+              onChange={(newWeights) => {
+                setWeights(newWeights);
+                updateProject({
+                  resource: "projects",
+                  id,
+                  values: { score_weights: newWeights },
+                });
+              }}
+            />
+          </Card>
           <Input placeholder="업체명 검색..." prefix={<SearchOutlined />} value={searchText}
             onChange={(e) => setSearchText(e.target.value)} style={{ width: 300, marginBottom: 16 }} allowClear />
-          <Table dataSource={filtered} rowKey="id" loading={prq.isLoading} size="middle"
+          <Table dataSource={sortedProspects} rowKey="id" loading={prq.isLoading} size="middle"
             pagination={{ pageSize: 15, showSizeChanger: true, showTotal: (t) => `총 ${t}개` }}
             onRow={(record) => ({
               onClick: () => window.location.href = `/dashboard/project/${id}/prospect/${record.id}`,
@@ -81,7 +123,12 @@ export default function ProjectDetailPage() {
                 title: "점수", dataIndex: "match_score", key: "score", width: 80,
                 sorter: (a: Prospect, b: Prospect) => (a.match_score || 0) - (b.match_score || 0),
                 defaultSortOrder: "descend",
-                render: (score: number) => <Tag color={score >= 80 ? "green" : score >= 50 ? "gold" : "default"} style={{ fontWeight: 700 }}>{score}</Tag>,
+                render: (_: number, record: Prospect) => {
+                  const displayScore = record.score_breakdown
+                    ? computeWeightedScore(record.score_breakdown, weights)
+                    : record.match_score;
+                  return <Tag color={displayScore >= 80 ? "green" : displayScore >= 50 ? "gold" : "default"} style={{ fontWeight: 700 }}>{displayScore}</Tag>;
+                },
               },
               {
                 title: "분류", dataIndex: "buyer_or_competitor", key: "type", width: 80,
