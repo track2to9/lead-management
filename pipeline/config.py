@@ -76,6 +76,9 @@ class PipelineConfig:
     max_candidates_per_country: int = 50
     scrape_timeout: int = 20000  # ms
     polite_delay: float = 1.0  # 크롤링 간 대기 시간 (초)
+    refinement_conditions: list[str] = field(default_factory=list)
+    refinement_round: int = 1
+    feedback_patterns: dict = field(default_factory=dict)  # pattern_analyzer output
 
     def __post_init__(self):
         # .env에서 LLM 프로바이더 로드
@@ -142,4 +145,12 @@ class PipelineConfig:
             parts.append(f"\n강점: {self.client.strengths}")
         if self.client.target_buyer_types:
             parts.append(f"\n타겟 바이어: {self.client.target_buyer_types}")
+        if self.refinement_conditions:
+            parts.append(f"\n\n추가 분석 조건 (고객 요청):")
+            for cond in self.refinement_conditions:
+                parts.append(f"\n  - {cond}")
+        if self.feedback_patterns.get("preferred_traits"):
+            parts.append(f"\n\n고객 선호 패턴:")
+            for trait in self.feedback_patterns["preferred_traits"][:5]:
+                parts.append(f"\n  - {trait}")
         return "".join(parts)

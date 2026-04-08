@@ -113,6 +113,10 @@ def parse_args() -> argparse.Namespace:
         "--csv-only", action="store_true",
         help="CSV만 출력 (Excel 생성 안 함)",
     )
+    parser.add_argument("--refinement-conditions", nargs="*", default=[],
+                        help="추가 분석 조건 (고객 피드백 반영)")
+    parser.add_argument("--round", type=int, default=1,
+                        help="분석 회차 (재분석 시 증가)")
 
     return parser.parse_args()
 
@@ -135,6 +139,8 @@ async def async_main():
         llm_model=args.llm_model,
     )
     config.max_candidates_per_country = args.max_candidates
+    config.refinement_conditions = args.refinement_conditions or []
+    config.refinement_round = args.round
 
     # 출력 디렉토리 생성
     os.makedirs(config.output_dir, exist_ok=True)
