@@ -7,6 +7,8 @@ import { HomeOutlined, SearchOutlined, CheckCircleOutlined } from "@ant-design/i
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import ScoreWeightsEditor from "@/components/ScoreWeightsEditor";
+import RefinementConditionsForm from "@/components/RefinementConditionsForm";
+import PatternInsightCard from "@/components/PatternInsightCard";
 import { DEFAULT_SCORE_WEIGHTS, SCORE_DIMENSION_LABELS } from "@/lib/types";
 import type { Project, Prospect, Feedback, Exhibition, ScoreWeights, ScoreBreakdown } from "@/lib/types";
 
@@ -17,6 +19,7 @@ export default function ProjectDetailPage() {
   const [searchText, setSearchText] = useState("");
   const [feedbackNote, setFeedbackNote] = useState("");
   const [weights, setWeights] = useState<ScoreWeights>(DEFAULT_SCORE_WEIGHTS);
+  const [activeRound, setActiveRound] = useState<number | "all">("all");
   const { mutate: updateProject } = useUpdate();
 
   const { query: pq } = useOne<Project>({ resource: "projects", id });
@@ -53,6 +56,10 @@ export default function ProjectDetailPage() {
     !searchText || p.name.toLowerCase().includes(searchText.toLowerCase())
   );
 
+  const roundFiltered = activeRound === "all"
+    ? filtered
+    : filtered.filter((p) => (p.round || 1) === activeRound);
+
   function computeWeightedScore(breakdown: ScoreBreakdown | undefined, w: ScoreWeights): number {
     if (!breakdown) return 0;
     const dims = Object.keys(w) as (keyof ScoreWeights)[];
@@ -65,7 +72,7 @@ export default function ProjectDetailPage() {
     return Math.round(weightedSum / totalWeight);
   }
 
-  const sortedProspects = [...filtered].sort((a, b) => {
+  const sortedProspects = [...roundFiltered].sort((a, b) => {
     const scoreA = a.score_breakdown ? computeWeightedScore(a.score_breakdown, weights) : a.match_score;
     const scoreB = b.score_breakdown ? computeWeightedScore(b.score_breakdown, weights) : b.match_score;
     return scoreB - scoreA;
@@ -86,6 +93,16 @@ export default function ProjectDetailPage() {
       label: `바이어 리스트 (${prospects.length})`,
       children: (
         <div>
+          {(project.refinement_round || 1) > 1 && (
+            <Space style={{ marginBottom: 12 }}>
+              <Button type={activeRound === "all" ? "primary" : "default"} size="small"
+                onClick={() => setActiveRound("all")}>전체</Button>
+              {Array.from({ length: project.refinement_round || 1 }, (_, i) => i + 1).map((r) => (
+                <Button key={r} type={activeRound === r ? "primary" : "default"} size="small"
+                  onClick={() => setActiveRound(r)}>{r}차 분석</Button>
+              ))}
+            </Space>
+          )}
           <Card size="small" title="매칭 가중치 설정" style={{ marginBottom: 16 }}
             extra={<Text type="secondary" style={{ fontSize: 11 }}>가중치를 조절하면 리스트가 즉시 재정렬됩니다</Text>}>
             <ScoreWeightsEditor
@@ -177,23 +194,69 @@ export default function ProjectDetailPage() {
       key: "feedback",
       label: "피드백",
       children: (
-        <Card>
-          <Title level={5}>프로젝트 피드백</Title>
-          <Input.TextArea value={feedbackNote} onChange={(e) => setFeedbackNote(e.target.value)}
-            placeholder="전체 방향에 대한 의견을 남겨주세요..." rows={3} style={{ marginBottom: 12 }} />
-          <Button type="primary">피드백 전송</Button>
-          <div style={{ marginTop: 16 }}>
-            {feedback.filter((f) => !f.prospect_id).map((f, i) => (
-              <div key={i} style={{ padding: 12, background: "#fafafa", borderRadius: 8, marginBottom: 8 }}>
-                <Text type="secondary" style={{ fontSize: 11 }}>{f.timestamp?.replace("T", " ").split(".")[0]}</Text>
-                <pre style={{ whiteSpace: "pre-wrap", fontFamily: "inherit", fontSize: 13, marginTop: 4,
-                  color: f.user_email?.includes("tradevoy") || f.user_email?.includes("system") ? "#f15f23" : undefined }}>
-                  {f.text}
-                </pre>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+          <div>
+            <Card size="small" style={{ marginBottom: 16 }}>
+              <RefinementConditionsForm
+                conditions={project.refinement_conditions || []}
+                onSubmit={(conditions) => {
+                  updateProject({
+                    resource: "projects",
+                    id,
+                    values: { refinement_conditions: conditions, status: "refining" },
+                  });
+                }}
+              />
+            </Card>
+            <Card size="small">
+              <Title level={5}>프로젝트 피드백</Title>
+              <Input.TextArea value={feedbackNote} onChange={(e) => setFeedbackNote(e.target.value)}
+                placeholder="전체 방향에 대한 의견을 남겨주세요..." rows={3} style={{ marginBottom: 12 }} />
+              <Button type="primary">피드백 전송</Button>
+              <div style={{ marginTop: 16 }}>
+                {feedback.filter((f) => !f.prospect_id).map((f, i) => (
+                  <div key={i} style={{ padding: 12, background: "#fafafa", borderRadius: 8, marginBottom: 8 }}>
+                    <Text type="secondary" style={{ fontSize: 11 }}>{f.timestamp?.replace("T", " ").split(".")[0]}</Text>
+                    <pre style={{ whiteSpace: "pre-wrap", fontFamily: "inherit", fontSize: 13, marginTop: 4,
+                      color: f.user_email?.includes("tradevoy") || f.user_email?.includes("system") ? "#f15f23" : undefined }}>
+                      {f.text}
+                    </pre>
+                  </div>
+                ))}
               </div>
-            ))}
+            </Card>
           </div>
-        </Card>
+          <div>
+            <Card size="small" style={{ marginBottom: 16 }}>
+              <PatternInsightCard
+                patterns={{
+                  summary: stats.accepted >= 5
+                    ? `${stats.accepted}개의 승인된 바이어에서 패턴을 분석할 수 있습니다.`
+                    : `패턴 분석을 위해 최소 5개의 바이어를 승인해주세요. (현재 ${stats.accepted}개)`,
+                  preferred_traits: [],
+                  avoided_traits: [],
+                  suggested_conditions: [],
+                }}
+              />
+            </Card>
+            <Card size="small" title="프로젝트 타임라인">
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <div style={{ padding: "8px 12px", background: "#f0f9ff", borderRadius: 8 }}>
+                  <Text type="secondary" style={{ fontSize: 11 }}>프로젝트 생성</Text>
+                  <div style={{ fontSize: 13, fontWeight: 600 }}>{project.created_at?.split("T")[0]}</div>
+                </div>
+                {feedback.filter((f) => !f.prospect_id).map((f, i) => (
+                  <div key={i} style={{ padding: "8px 12px", background: "#fafafa", borderRadius: 8 }}>
+                    <Text type="secondary" style={{ fontSize: 11 }}>{f.timestamp?.replace("T", " ").split(".")[0]}</Text>
+                    <div style={{ fontSize: 13, color: f.user_email?.includes("tradevoy") || f.user_email?.includes("system") ? "#f15f23" : undefined }}>
+                      {f.text?.slice(0, 60)}{(f.text?.length || 0) > 60 ? "..." : ""}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          </div>
+        </div>
       ),
     },
   ];
@@ -207,8 +270,18 @@ export default function ProjectDetailPage() {
 
       <Space align="center" style={{ marginBottom: 4 }}>
         <Title level={4} style={{ margin: 0 }}>{project.name}</Title>
-        <Tag color={project.status === "active" ? "green" : project.status === "reviewing" ? "orange" : "default"}>
-          {project.status === "active" ? "진행 중" : project.status === "reviewing" ? "검토 중" : "완료"}
+        <Tag color={
+          project.status === "active" ? "green" :
+          project.status === "analyzing" ? "blue" :
+          project.status === "results_ready" ? "cyan" :
+          project.status === "refining" ? "orange" :
+          "default"
+        }>
+          {project.status === "active" ? "진행 중" :
+           project.status === "analyzing" ? "분석 중" :
+           project.status === "results_ready" ? "결과 검토" :
+           project.status === "refining" ? "조건 수정 중" :
+           "완료"}
         </Tag>
       </Space>
       <Text type="secondary" style={{ display: "block", marginBottom: 24 }}>
