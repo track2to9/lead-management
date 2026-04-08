@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ project_name }} - TradeVoy 분석 리포트</title>
+<style>
+  :root {
+    --accent: #f15f23;
+    --bg: #fafafa;
+    --card: #ffffff;
+    --text: #111;
+    --muted: #666;
+    --border: #e5e5e5;
+    --green: #16a34a;
+    --yellow: #ca8a04;
+    --red: #dc2626;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; }
+  .container { max-width: 1100px; margin: 0 auto; padding: 0 24px; }
+
+  /* Header */
+  .report-header { background: #0a0a0a; color: #fff; padding: 48px 0 36px; }
+  .report-header h1 { font-size: 2rem; font-weight: 900; margin-bottom: 8px; }
+  .report-header .subtitle { color: rgba(255,255,255,0.6); font-size: 1rem; }
+  .report-meta { display: flex; gap: 32px; margin-top: 24px; font-size: 0.85rem; color: rgba(255,255,255,0.5); }
+  .report-meta span { display: flex; align-items: center; gap: 6px; }
+
+  /* Stats bar */
+  .stats-bar { background: #fff; border-bottom: 1px solid var(--border); padding: 24px 0; }
+  .stats-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; text-align: center; }
+  .stat-num { font-size: 2rem; font-weight: 900; color: var(--accent); }
+  .stat-label { font-size: 0.75rem; color: var(--muted); margin-top: 2px; }
+
+  /* Section */
+  .section { padding: 40px 0; }
+  .section-title { font-size: 1.5rem; font-weight: 800; margin-bottom: 24px; display: flex; align-items: center; gap: 12px; }
+  .section-title .badge { font-size: 0.65rem; background: var(--accent); color: #fff; padding: 3px 10px; border-radius: 50px; font-weight: 700; }
+
+  /* Company card */
+  .company-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 24px; overflow: hidden; }
+  .company-card.high { border-left: 4px solid var(--green); }
+  .company-card.medium { border-left: 4px solid var(--yellow); }
+  .company-card.low { border-left: 4px solid var(--border); }
+
+  .card-header { padding: 20px 24px; display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; cursor: pointer; }
+  .card-header:hover { background: #f9f9f9; }
+  .card-header h3 { font-size: 1.1rem; font-weight: 700; }
+  .card-header .url { font-size: 0.8rem; color: var(--accent); word-break: break-all; }
+  .card-header .tags { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+  .tag { font-size: 0.7rem; padding: 2px 8px; border-radius: 4px; font-weight: 600; }
+  .tag-buyer { background: rgba(22,163,74,0.1); color: var(--green); }
+  .tag-competitor { background: rgba(220,38,38,0.1); color: var(--red); }
+  .tag-source { background: rgba(0,0,0,0.05); color: var(--muted); }
+
+  .score-badge { min-width: 56px; height: 56px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; font-weight: 900; color: #fff; flex-shrink: 0; }
+  .score-high { background: var(--green); }
+  .score-medium { background: var(--yellow); }
+  .score-low { background: #999; }
+
+  .card-body { padding: 0 24px 24px; display: none; }
+  .card-body.open { display: block; }
+
+  .card-section { margin-bottom: 20px; }
+  .card-section-title { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--accent); margin-bottom: 8px; }
+  .card-section p { font-size: 0.9rem; color: #333; line-height: 1.7; }
+
+  /* Evidence */
+  .evidence-item { background: #f8f8f8; border-left: 3px solid var(--accent); padding: 12px 16px; margin-bottom: 10px; border-radius: 0 8px 8px 0; }
+  .evidence-original { font-size: 0.85rem; color: var(--muted); font-style: italic; margin-bottom: 4px; }
+  .evidence-translated { font-size: 0.9rem; color: var(--text); font-weight: 500; margin-bottom: 4px; }
+  .evidence-relevance { font-size: 0.8rem; color: var(--accent); }
+
+  /* Reasoning */
+  .reasoning { background: #fffbf5; border: 1px solid #ffe0c0; border-radius: 8px; padding: 16px; font-size: 0.9rem; line-height: 1.8; }
+
+  /* Intelligence grid */
+  .intel-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  .intel-item { background: #f8f8f8; border-radius: 8px; padding: 12px; }
+  .intel-label { font-size: 0.7rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
+  .intel-value { font-size: 0.9rem; font-weight: 600; }
+
+  /* Email draft */
+  .email-box { background: #f8f8f8; border-radius: 8px; padding: 16px; }
+  .email-subject { font-weight: 700; margin-bottom: 8px; }
+  .email-body { font-size: 0.85rem; color: #444; white-space: pre-wrap; line-height: 1.6; }
+
+  /* Followup */
+  .followup-step { display: flex; gap: 12px; margin-bottom: 12px; }
+  .followup-day { min-width: 60px; height: 28px; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 700; flex-shrink: 0; }
+  .day3 { background: rgba(22,163,74,0.1); color: var(--green); }
+  .day7 { background: rgba(202,138,4,0.1); color: var(--yellow); }
+  .day14 { background: rgba(102,102,102,0.1); color: #666; }
+
+  /* Screenshot */
+  .screenshot { max-width: 100%; border-radius: 8px; border: 1px solid var(--border); margin-top: 12px; }
+
+  /* Exhibition */
+  .exhibition-card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 16px; }
+  .exhibition-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+
+  /* Data sources */
+  .source-list { list-style: none; }
+  .source-list li { padding: 8px 0; border-bottom: 1px solid #f0f0f0; font-size: 0.85rem; display: flex; gap: 8px; }
+  .source-list li:last-child { border-bottom: none; }
+  .source-url { color: var(--accent); word-break: break-all; }
+
+  /* Footer */
+  .report-footer { background: #0a0a0a; color: rgba(255,255,255,0.4); padding: 32px 0; text-align: center; font-size: 0.8rem; }
+  .report-footer .brand { color: #fff; font-weight: 800; font-size: 1rem; margin-bottom: 8px; }
+  .report-footer .brand span { color: var(--accent); }
+
+  /* Print */
+  @media print {
+    .card-body { display: block !important; }
+    .report-header { padding: 24px 0; }
+    .company-card { break-inside: avoid; }
+    body { background: #fff; }
+  }
+
+  /* Toggle */
+  .toggle-all { background: var(--accent); color: #fff; border: none; padding: 8px 16px; border-radius: 6px; font-size: 0.8rem; font-weight: 700; cursor: pointer; }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="report-header">
+  <div class="container">
+    <h1>{{ project_name }}</h1>
+    <div class="subtitle">{{ subtitle }}</div>
+    <div class="report-meta">
+      <span>📅 {{ report_date }}</span>
+      <span>🏢 {{ client_name }}</span>
+      <span>🌍 {{ countries | join(', ') }}</span>
+      <span>🔧 {{ product_category }}</span>
+    </div>
+  </div>
+</div>
+
+<!-- Stats -->
+<div class="stats-bar">
+  <div class="container">
+    <div class="stats-grid">
+      <div><div class="stat-num">{{ total_companies }}</div><div class="stat-label">분석 대상</div></div>
+      <div><div class="stat-num">{{ high_count }}</div><div class="stat-label">HIGH 등급</div></div>
+      <div><div class="stat-num">{{ medium_count }}</div><div class="stat-label">MEDIUM 등급</div></div>
+      <div><div class="stat-num">{{ emails_drafted }}</div><div class="stat-label">이메일 초안</div></div>
+      <div><div class="stat-num">{{ exhibitions_count }}</div><div class="stat-label">관련 전시회</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- Companies -->
+<div class="section">
+  <div class="container">
+    <div class="section-title">
+      바이어 분석 결과
+      <span class="badge">{{ total_companies }}개사</span>
+      <button class="toggle-all" onclick="toggleAll()">모두 펼치기/접기</button>
+    </div>
+
+    {% for company in companies %}
+    {% set a = company.analysis or {} %}
+    {% set priority = a.priority or 'low' %}
+    {% set score = a.match_score or 0 %}
+    <div class="company-card {{ priority }}">
+      <div class="card-header" onclick="this.nextElementSibling.classList.toggle('open')">
+        <div>
+          <h3>{{ company.name or 'Unknown' }}</h3>
+          <div class="url">{{ company.url or '' }}</div>
+          <div class="tags">
+            {% if a.buyer_or_competitor == 'buyer' %}
+            <span class="tag tag-buyer">구매자</span>
+            {% elif a.buyer_or_competitor == 'competitor' %}
+            <span class="tag tag-competitor">경쟁사</span>
+            {% endif %}
+            <span class="tag tag-source">{{ company.source or company.source_type or 'N/A' }}</span>
+          </div>
+        </div>
+        <div class="score-badge {% if score >= 80 %}score-high{% elif score >= 50 %}score-medium{% else %}score-low{% endif %}">
+          {{ score }}
+        </div>
+      </div>
+
+      <div class="card-body">
+        <!-- 요약 -->
+        <div class="card-section">
+          <div class="card-section-title">회사 요약</div>
+          <p>{{ a.summary or '정보 없음' }}</p>
+        </div>
+
+        <!-- 추론 근거 -->
+        {% if a.reasoning_chain %}
+        <div class="card-section">
+          <div class="card-section-title">매칭 점수 판단 근거</div>
+          <div class="reasoning">{{ a.reasoning_chain }}</div>
+        </div>
+        {% endif %}
+
+        <!-- 원문 인용 -->
+        {% if a.evidence_quotes %}
+        <div class="card-section">
+          <div class="card-section-title">홈페이지 원문 인용 ({{ a.evidence_quotes | length }}건)</div>
+          {% for eq in a.evidence_quotes %}
+          <div class="evidence-item">
+            <div class="evidence-original">"{{ eq.original }}"</div>
+            <div class="evidence-translated">→ {{ eq.translated }}</div>
+            <div class="evidence-relevance">📌 {{ eq.relevance }}</div>
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- 인텔리전스 -->
+        <div class="card-section">
+          <div class="card-section-title">바이어 인텔리전스</div>
+          <div class="intel-grid">
+            <div class="intel-item">
+              <div class="intel-label">현재 공급업체</div>
+              <div class="intel-value">{{ a.current_suppliers | join(', ') if a.current_suppliers else '미확인' }}</div>
+            </div>
+            <div class="intel-item">
+              <div class="intel-label">회사 규모</div>
+              <div class="intel-value">{{ a.company_size_estimate or '미확인' }}</div>
+            </div>
+            <div class="intel-item">
+              <div class="intel-label">의사결정권자</div>
+              <div class="intel-value">{{ a.decision_maker_hint or '미확인' }}</div>
+            </div>
+            <div class="intel-item">
+              <div class="intel-label">접근 타이밍</div>
+              <div class="intel-value">{{ a.best_timing or '미확인' }}</div>
+            </div>
+            <div class="intel-item">
+              <div class="intel-label">경쟁 환경</div>
+              <div class="intel-value">{{ a.competitive_landscape or '미확인' }}</div>
+            </div>
+            <div class="intel-item">
+              <div class="intel-label">접근 전략</div>
+              <div class="intel-value">{{ a.approach or '미확인' }}</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 이메일 초안 -->
+        {% if company.email_draft and company.email_draft.subject %}
+        <div class="card-section">
+          <div class="card-section-title">이메일 초안</div>
+          <div class="email-box">
+            <div class="email-subject">Subject: {{ company.email_draft.subject }}</div>
+            <div class="email-body">{{ company.email_draft.body }}</div>
+          </div>
+        </div>
+        {% endif %}
+
+        <!-- 팔로업 시퀀스 -->
+        {% if company.followup_sequence and company.followup_sequence.emails %}
+        <div class="card-section">
+          <div class="card-section-title">팔로업 시퀀스 (3단계)</div>
+          {% for fu in company.followup_sequence.emails %}
+          <div class="followup-step">
+            <div class="followup-day day{{ fu.day }}">Day {{ fu.day }}</div>
+            <div>
+              <div style="font-weight:600;font-size:0.85rem;">{{ fu.subject }}</div>
+              <div style="font-size:0.8rem;color:#666;margin-top:4px;">{{ fu.body[:150] }}...</div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- 스크린샷 -->
+        {% if company.screenshot_path %}
+        <div class="card-section">
+          <div class="card-section-title">홈페이지 스크린샷</div>
+          <img class="screenshot" src="{{ company.screenshot_path }}" alt="{{ company.name }} 스크린샷" loading="lazy">
+        </div>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- Exhibitions -->
+{% if exhibitions %}
+<div class="section" style="background:#fff;border-top:1px solid var(--border);">
+  <div class="container">
+    <div class="section-title">관련 전시회 <span class="badge">{{ exhibitions | length }}개</span></div>
+    <div class="exhibition-grid">
+      {% for ex in exhibitions %}
+      <div class="exhibition-card">
+        <h4 style="font-size:0.95rem;margin-bottom:6px;">{{ ex.name }}</h4>
+        <div style="font-size:0.8rem;color:var(--muted);margin-bottom:4px;">📍 {{ ex.location }} · {{ ex.typical_month }}</div>
+        <div style="font-size:0.85rem;margin-bottom:6px;">{{ ex.relevance or '' }}</div>
+        {% if ex.website %}<a href="{{ ex.website }}" style="font-size:0.8rem;color:var(--accent);">{{ ex.website }}</a>{% endif %}
+        {% if ex.action_suggestion %}<div style="font-size:0.8rem;color:var(--green);margin-top:6px;">💡 {{ ex.action_suggestion }}</div>{% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Data Sources -->
+{% if data_sources %}
+<div class="section">
+  <div class="container">
+    <div class="section-title">데이터 소스 <span class="badge">{{ data_sources | length }}개</span></div>
+    <ul class="source-list">
+      {% for src in data_sources %}
+      <li>
+        <span>{{ loop.index }}.</span>
+        <span>{{ src.name or src.source_name or 'Unknown' }}</span>
+        {% if src.url %}<span class="source-url">{{ src.url }}</span>{% endif %}
+        {% if src.verified %}<span style="color:var(--green);">✓ 접근확인</span>{% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+</div>
+{% endif %}
+
+<!-- Footer -->
+<div class="report-footer">
+  <div class="container">
+    <div class="brand">Trade<span>Voy</span></div>
+    <div>AI 기반 해외 바이어 발굴 서비스 · trade.devpartner.org</div>
+    <div style="margin-top:8px;">이 리포트는 {{ report_date }}에 생성되었습니다. 문의: contact@devpartner.org</div>
+  </div>
+</div>
+
+<script>
+function toggleAll() {
+  var bodies = document.querySelectorAll('.card-body');
+  var anyOpen = Array.from(bodies).some(function(b) { return b.classList.contains('open'); });
+  bodies.forEach(function(b) {
+    if (anyOpen) b.classList.remove('open');
+    else b.classList.add('open');
+  });
+}
+</script>
+</body>
+</html>

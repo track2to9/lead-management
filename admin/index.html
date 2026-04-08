@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TradeVoy Admin</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root {
+    --accent: #f15f23;
+    --bg: #fafafa;
+    --card: #ffffff;
+    --text: #111;
+    --muted: #888;
+    --border: #e5e5e5;
+    --green: #16a34a;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+  /* Auth */
+  .auth-page { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+  .auth-box { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 40px; max-width: 400px; width: 100%; }
+  .auth-box h1 { font-size: 1.5rem; font-weight: 900; margin-bottom: 8px; }
+  .auth-box h1 span { color: var(--accent); }
+  .auth-box p { color: var(--muted); font-size: 0.9rem; margin-bottom: 24px; }
+  .auth-field { margin-bottom: 16px; }
+  .auth-field label { display: block; font-size: 0.8rem; font-weight: 600; margin-bottom: 4px; }
+  .auth-field input { width: 100%; padding: 10px 14px; border: 1px solid var(--border); border-radius: 8px; font-size: 0.95rem; }
+  .auth-field input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(241,95,35,0.1); }
+  .auth-btn { width: 100%; padding: 12px; background: var(--accent); color: #fff; border: none; border-radius: 8px; font-size: 1rem; font-weight: 700; cursor: pointer; }
+  .auth-btn:hover { background: #ff7a45; }
+  .auth-error { color: #dc2626; font-size: 0.85rem; margin-top: 12px; }
+  .auth-toggle { text-align: center; margin-top: 16px; font-size: 0.85rem; color: var(--muted); }
+  .auth-toggle a { color: var(--accent); cursor: pointer; }
+
+  /* Layout */
+  .app { display: none; }
+  .topbar { background: #0a0a0a; color: #fff; padding: 0 24px; height: 56px; display: flex; align-items: center; justify-content: space-between; }
+  .topbar-brand { font-weight: 900; font-size: 1rem; }
+  .topbar-brand span { color: var(--accent); }
+  .topbar-user { display: flex; align-items: center; gap: 12px; font-size: 0.85rem; color: rgba(255,255,255,0.6); }
+  .topbar-logout { background: none; border: 1px solid rgba(255,255,255,0.2); color: #fff; padding: 4px 12px; border-radius: 6px; font-size: 0.8rem; cursor: pointer; }
+
+  .main { max-width: 1000px; margin: 0 auto; padding: 32px 24px; }
+
+  /* Project cards */
+  .section-title { font-size: 1.3rem; font-weight: 800; margin-bottom: 20px; }
+  .project-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
+  .project-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; cursor: pointer; transition: all 0.2s; }
+  .project-card:hover { border-color: var(--accent); box-shadow: 0 4px 20px rgba(0,0,0,0.06); }
+  .project-card h3 { font-size: 1rem; font-weight: 700; margin-bottom: 4px; }
+  .project-card .meta { font-size: 0.8rem; color: var(--muted); margin-bottom: 12px; }
+  .project-stats { display: flex; gap: 16px; }
+  .project-stat { text-align: center; }
+  .project-stat-num { font-size: 1.3rem; font-weight: 900; color: var(--accent); }
+  .project-stat-label { font-size: 0.7rem; color: var(--muted); }
+  .status-badge { font-size: 0.7rem; font-weight: 700; padding: 2px 8px; border-radius: 4px; }
+  .status-active { background: rgba(22,163,74,0.1); color: var(--green); }
+  .status-completed { background: rgba(0,0,0,0.05); color: var(--muted); }
+
+  /* Report viewer */
+  .report-view { display: none; }
+  .report-frame { width: 100%; border: 1px solid var(--border); border-radius: 12px; min-height: 600px; background: #fff; }
+  .back-btn { background: none; border: 1px solid var(--border); padding: 6px 16px; border-radius: 6px; font-size: 0.85rem; cursor: pointer; margin-bottom: 16px; }
+  .back-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* Feedback */
+  .feedback-section { margin-top: 24px; background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; }
+  .feedback-section h3 { font-size: 1rem; font-weight: 700; margin-bottom: 12px; }
+  .feedback-textarea { width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 0.9rem; min-height: 100px; resize: vertical; font-family: inherit; }
+  .feedback-textarea:focus { outline: none; border-color: var(--accent); }
+  .feedback-actions { display: flex; gap: 8px; margin-top: 12px; }
+  .feedback-btn { padding: 8px 16px; border-radius: 6px; font-size: 0.85rem; font-weight: 600; cursor: pointer; border: none; }
+  .feedback-btn-primary { background: var(--accent); color: #fff; }
+  .feedback-btn-secondary { background: #f0f0f0; color: var(--text); }
+  .feedback-list { margin-top: 16px; }
+  .feedback-item { padding: 12px; background: #f8f8f8; border-radius: 8px; margin-bottom: 8px; font-size: 0.85rem; }
+  .feedback-item .timestamp { font-size: 0.75rem; color: var(--muted); margin-bottom: 4px; }
+
+  .empty-state { text-align: center; padding: 48px; color: var(--muted); }
+  .empty-state h3 { margin-bottom: 8px; }
+</style>
+</head>
+<body>
+
+<!-- Auth Screen -->
+<div class="auth-page" id="authPage">
+  <div class="auth-box">
+    <h1>Trade<span>Voy</span></h1>
+    <p>고객 전용 포털에 로그인하세요.</p>
+    <div id="loginForm">
+      <div class="auth-field">
+        <label>이메일</label>
+        <input type="email" id="authEmail" placeholder="your@email.com">
+      </div>
+      <div class="auth-field">
+        <label>비밀번호</label>
+        <input type="password" id="authPassword" placeholder="••••••••">
+      </div>
+      <button class="auth-btn" onclick="handleLogin()">로그인</button>
+      <div id="authError" class="auth-error"></div>
+      <div class="auth-toggle">
+        계정이 없으신가요? <a onclick="toggleSignup()">회원가입</a>
+      </div>
+    </div>
+    <div id="signupForm" style="display:none;">
+      <div class="auth-field">
+        <label>이메일</label>
+        <input type="email" id="signupEmail" placeholder="your@email.com">
+      </div>
+      <div class="auth-field">
+        <label>비밀번호</label>
+        <input type="password" id="signupPassword" placeholder="6자 이상">
+      </div>
+      <div class="auth-field">
+        <label>회사명</label>
+        <input type="text" id="signupCompany" placeholder="주식회사 OOO">
+      </div>
+      <button class="auth-btn" onclick="handleSignup()">회원가입</button>
+      <div id="signupError" class="auth-error"></div>
+      <div class="auth-toggle">
+        이미 계정이 있으신가요? <a onclick="toggleSignup()">로그인</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- App (after login) -->
+<div class="app" id="app">
+  <div class="topbar">
+    <div class="topbar-brand">Trade<span>Voy</span> Admin</div>
+    <div class="topbar-user">
+      <span id="userEmail"></span>
+      <button class="topbar-logout" onclick="handleLogout()">로그아웃</button>
+    </div>
+  </div>
+
+  <div class="main">
+    <!-- Project List -->
+    <div id="projectList">
+      <div class="section-title">내 프로젝트</div>
+      <div class="project-grid" id="projectGrid">
+        <div class="empty-state">
+          <h3>아직 프로젝트가 없습니다</h3>
+          <p>TradeVoy 팀이 분석을 시작하면 여기에 표시됩니다.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Report View -->
+    <div id="reportView" class="report-view">
+      <button class="back-btn" onclick="showProjectList()">&larr; 프로젝트 목록</button>
+      <h2 id="reportTitle" class="section-title"></h2>
+
+      <!-- Report iframe or inline -->
+      <iframe id="reportFrame" class="report-frame" sandbox="allow-scripts"></iframe>
+
+      <!-- Feedback Section -->
+      <div class="feedback-section">
+        <h3>피드백 남기기</h3>
+        <p style="font-size:0.85rem;color:var(--muted);margin-bottom:12px;">
+          리스트에 대한 의견을 남겨주세요. "이 업체는 경쟁사야", "이런 규모의 회사를 더 찾아줘" 등 자유롭게 적어주세요.
+        </p>
+        <textarea class="feedback-textarea" id="feedbackText" placeholder="예: 5번 업체는 이미 거래 중이라 제외해주세요. 3번 같은 중소형 딜러를 더 찾아주세요."></textarea>
+        <div class="feedback-actions">
+          <button class="feedback-btn feedback-btn-primary" onclick="submitFeedback()">피드백 전송</button>
+          <button class="feedback-btn feedback-btn-secondary" onclick="submitFeedback('추가 분석 요청')">추가 분석 요청</button>
+        </div>
+        <div class="feedback-list" id="feedbackList"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================
+// Supabase Config
+// ============================
+// TODO: 실제 Supabase 프로젝트 생성 후 이 값들을 교체하세요
+const SUPABASE_URL = 'https://YOUR_PROJECT.supabase.co';
+const SUPABASE_ANON_KEY = 'YOUR_ANON_KEY';
+
+let supabase = null;
+let currentUser = null;
+let currentProjectId = null;
+
+// Supabase 초기화 (설정 전이면 데모 모드로 동작)
+const isDemoMode = SUPABASE_URL.includes('YOUR_PROJECT');
+
+if (!isDemoMode) {
+  supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+}
+
+// ============================
+// Auth
+// ============================
+async function handleLogin() {
+  const email = document.getElementById('authEmail').value;
+  const password = document.getElementById('authPassword').value;
+
+  if (isDemoMode) {
+    // 데모 모드: 아무 이메일/비번으로 로그인
+    currentUser = { email: email || 'demo@tradevoy.com' };
+    showApp();
+    return;
+  }
+
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+  if (error) {
+    document.getElementById('authError').textContent = error.message;
+    return;
+  }
+  currentUser = data.user;
+  showApp();
+}
+
+async function handleSignup() {
+  const email = document.getElementById('signupEmail').value;
+  const password = document.getElementById('signupPassword').value;
+  const company = document.getElementById('signupCompany').value;
+
+  if (isDemoMode) {
+    currentUser = { email: email || 'demo@tradevoy.com' };
+    showApp();
+    return;
+  }
+
+  const { data, error } = await supabase.auth.signUp({
+    email, password,
+    options: { data: { company_name: company } }
+  });
+  if (error) {
+    document.getElementById('signupError').textContent = error.message;
+    return;
+  }
+  alert('이메일을 확인해주세요. 인증 링크를 보냈습니다.');
+}
+
+async function handleLogout() {
+  if (!isDemoMode) await supabase.auth.signOut();
+  currentUser = null;
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('authPage').style.display = 'flex';
+}
+
+function toggleSignup() {
+  var login = document.getElementById('loginForm');
+  var signup = document.getElementById('signupForm');
+  login.style.display = login.style.display === 'none' ? 'block' : 'none';
+  signup.style.display = signup.style.display === 'none' ? 'block' : 'none';
+}
+
+// ============================
+// App
+// ============================
+function showApp() {
+  document.getElementById('authPage').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  document.getElementById('userEmail').textContent = currentUser.email;
+  loadProjects();
+}
+
+async function loadProjects() {
+  const grid = document.getElementById('projectGrid');
+
+  if (isDemoMode) {
+    // 데모 데이터
+    grid.innerHTML = `
+      <div class="project-card" onclick="openProject('demo-poland')">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <h3>SPS Eng - 폴란드 건설장비 딜러</h3>
+          <span class="status-badge status-active">진행 중</span>
+        </div>
+        <div class="meta">2026-04-07 · Poland · 건설장비 부품</div>
+        <div class="project-stats">
+          <div class="project-stat"><div class="project-stat-num">30</div><div class="project-stat-label">분석 대상</div></div>
+          <div class="project-stat"><div class="project-stat-num">20</div><div class="project-stat-label">HIGH</div></div>
+          <div class="project-stat"><div class="project-stat-num">173</div><div class="project-stat-label">이메일</div></div>
+        </div>
+      </div>
+      <div class="project-card" onclick="openProject('demo-japan')">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <h3>UAngel - 일본 Local 5G 파트너</h3>
+          <span class="status-badge status-completed">완료</span>
+        </div>
+        <div class="meta">2026-04-07 · Japan · 5G Core NF</div>
+        <div class="project-stats">
+          <div class="project-stat"><div class="project-stat-num">30</div><div class="project-stat-label">분석 대상</div></div>
+          <div class="project-stat"><div class="project-stat-num">27</div><div class="project-stat-label">HIGH</div></div>
+          <div class="project-stat"><div class="project-stat-num">56</div><div class="project-stat-label">전화번호</div></div>
+        </div>
+      </div>
+    `;
+    return;
+  }
+
+  // Supabase에서 프로젝트 로드
+  const { data, error } = await supabase
+    .from('projects')
+    .select('*')
+    .eq('user_id', currentUser.id)
+    .order('created_at', { ascending: false });
+
+  if (error || !data || data.length === 0) {
+    grid.innerHTML = '<div class="empty-state"><h3>아직 프로젝트가 없습니다</h3><p>TradeVoy 팀이 분석을 시작하면 여기에 표시됩니다.</p></div>';
+    return;
+  }
+
+  grid.innerHTML = data.map(p => `
+    <div class="project-card" onclick="openProject('${p.id}')">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <h3>${p.name}</h3>
+        <span class="status-badge ${p.status === 'active' ? 'status-active' : 'status-completed'}">${p.status === 'active' ? '진행 중' : '완료'}</span>
+      </div>
+      <div class="meta">${p.created_at?.split('T')[0]} · ${p.countries} · ${p.product}</div>
+      <div class="project-stats">
+        <div class="project-stat"><div class="project-stat-num">${p.total_companies || 0}</div><div class="project-stat-label">분석 대상</div></div>
+        <div class="project-stat"><div class="project-stat-num">${p.high_count || 0}</div><div class="project-stat-label">HIGH</div></div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function openProject(id) {
+  currentProjectId = id;
+  document.getElementById('projectList').style.display = 'none';
+  document.getElementById('reportView').style.display = 'block';
+  document.getElementById('reportTitle').textContent = id.includes('poland') ? 'SPS Eng - 폴란드 건설장비' : 'UAngel - 일본 Local 5G';
+
+  // 데모: 리포트 HTML을 iframe에 로드
+  // 실제: Supabase Storage에서 리포트 URL 가져오기
+  if (isDemoMode) {
+    document.getElementById('reportFrame').srcdoc = '<div style="padding:40px;text-align:center;color:#888;font-family:sans-serif;"><h2>리포트 미리보기</h2><p>실제 서비스에서는 여기에 분석 리포트가 표시됩니다.</p><p style="margin-top:16px;">파이프라인에서 생성된 HTML 리포트가 인라인으로 렌더링됩니다.</p></div>';
+  }
+
+  loadFeedback();
+}
+
+function showProjectList() {
+  document.getElementById('projectList').style.display = 'block';
+  document.getElementById('reportView').style.display = 'none';
+  currentProjectId = null;
+}
+
+// ============================
+// Feedback
+// ============================
+async function submitFeedback(type) {
+  const text = document.getElementById('feedbackText').value.trim();
+  if (!text && !type) return;
+
+  const feedbackData = {
+    project_id: currentProjectId,
+    user_email: currentUser.email,
+    type: type || 'general',
+    text: text,
+    timestamp: new Date().toISOString(),
+  };
+
+  if (!isDemoMode) {
+    await supabase.from('feedback').insert(feedbackData);
+  }
+
+  // UI에 즉시 추가
+  addFeedbackToUI(feedbackData);
+  document.getElementById('feedbackText').value = '';
+
+  alert(type === '추가 분석 요청'
+    ? '추가 분석 요청이 전송되었습니다. TradeVoy 팀이 확인 후 연락드리겠습니다.'
+    : '피드백이 전송되었습니다. 감사합니다!');
+}
+
+async function loadFeedback() {
+  const list = document.getElementById('feedbackList');
+
+  if (isDemoMode) {
+    list.innerHTML = `
+      <div class="feedback-item">
+        <div class="timestamp">2026-04-07 14:30</div>
+        <div>5번 업체(Interhandler)는 이미 거래 중이라 제외해주세요. 3번(GLOMAK) 같은 중소형 딜러를 더 찾아주시면 좋겠습니다.</div>
+      </div>
+      <div class="feedback-item">
+        <div class="timestamp">2026-04-07 15:00 · TradeVoy</div>
+        <div style="color:var(--accent);">확인했습니다. 중소형 멀티브랜드 딜러 10개를 추가 분석하여 내일까지 업데이트하겠습니다.</div>
+      </div>
+    `;
+    return;
+  }
+
+  const { data } = await supabase
+    .from('feedback')
+    .select('*')
+    .eq('project_id', currentProjectId)
+    .order('timestamp', { ascending: true });
+
+  if (data) {
+    list.innerHTML = data.map(f => `
+      <div class="feedback-item">
+        <div class="timestamp">${f.timestamp?.replace('T', ' ').split('.')[0]}${f.user_email?.includes('tradevoy') ? ' · TradeVoy' : ''}</div>
+        <div ${f.user_email?.includes('tradevoy') ? 'style="color:var(--accent);"' : ''}>${f.text}</div>
+      </div>
+    `).join('');
+  }
+}
+
+function addFeedbackToUI(f) {
+  const list = document.getElementById('feedbackList');
+  const div = document.createElement('div');
+  div.className = 'feedback-item';
+  div.innerHTML = `<div class="timestamp">${f.timestamp?.replace('T', ' ').split('.')[0]}</div><div>${f.text}</div>`;
+  list.appendChild(div);
+}
+
+// ============================
+// Init
+// ============================
+(async function init() {
+  if (isDemoMode) return; // 데모 모드에서는 로그인 화면 표시
+
+  const { data: { session } } = await supabase.auth.getSession();
+  if (session) {
+    currentUser = session.user;
+    showApp();
+  }
+})();
+</script>
+</body>
+</html>

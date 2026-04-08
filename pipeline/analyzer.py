@@ -58,29 +58,40 @@ Analyze the target company and provide your assessment in the following JSON for
   "approach": "Recommended approach strategy if this is a match (in Korean / 한국어로, 1-2 sentences)",
   "priority": "high" | "medium" | "low",
   "detected_products": ["list of relevant products/services this company deals with"],
+  "buyer_or_competitor": "buyer | competitor | unclear",
 
   "current_suppliers": ["brands/suppliers mentioned or implied on their website"],
   "company_size_estimate": "small (<50) | medium (50-500) | large (500+) | unknown",
-  "decision_maker_hint": "Likely decision maker role/title based on company type (e.g., 'Procurement Manager', 'Owner/CEO for small firms') (in Korean)",
-  "best_timing": "Best timing to approach this company (e.g., trade show season, budget cycle, product launch period) (in Korean / 한국어로)",
-  "competitive_landscape": "Brief note on their current supplier situation and switching potential (in Korean / 한국어로, 1 sentence)"
+  "decision_maker_hint": "Likely decision maker role/title (in Korean)",
+  "best_timing": "Best timing to approach (in Korean / 한국어로)",
+  "competitive_landscape": "Current supplier situation and switching potential (in Korean, 1 sentence)",
+
+  "evidence_quotes": [
+    {{
+      "original": "Exact quote from their website in original language",
+      "translated": "Same quote translated to Korean (한국어 번역)",
+      "relevance": "Why this quote matters for the match score (Korean, 1 sentence)"
+    }},
+    {{
+      "original": "Another key quote...",
+      "translated": "한국어 번역...",
+      "relevance": "이 인용이 매칭 점수에 영향을 준 이유"
+    }}
+  ],
+  "reasoning_chain": "Step-by-step reasoning: 1) What this company does → 2) Why it connects to our client → 3) Therefore score is X (in Korean, 3-4 sentences)"
 }}
 
 Guidelines:
-- match_score: 80-100 = ideal buyer, 50-79 = possible buyer, 30-49 = weak match, 0-29 = not relevant
-- priority: high = should contact immediately, medium = worth contacting, low = skip or deprioritize
-- If the website content is not in English, still analyze it (you understand multiple languages)
-- Be conservative with scores - only give high scores for clear, strong matches
-- For current_suppliers: extract brand names, partner logos, or mentions from the website content
-- For company_size_estimate: infer from website content (team page, office locations, product range)
-- For decision_maker_hint: suggest the most likely title/role to target based on company size and type
-- For best_timing: consider industry cycles, trade show seasons, or fiscal year patterns for their country
-- For competitive_landscape: note if they seem locked into existing suppliers or open to alternatives
+- match_score: 80-100 = ideal buyer, 50-79 = possible, 30-49 = weak, 0-29 = not relevant
+- evidence_quotes: Extract 2-4 ACTUAL quotes from the website text that support your score. Include original language + Korean translation.
+- reasoning_chain: Show your work - explain the logic step by step so the client can verify.
+- buyer_or_competitor: Classify clearly. A competitor makes similar products; a buyer NEEDS our products.
+- Be conservative with scores - only high scores for clear, strong matches.
 
 Return valid JSON only."""
 
     try:
-        result = llm.generate_json(prompt, max_tokens=600)
+        result = llm.generate_json(prompt, max_tokens=1000)
 
         # 필수 필드 기본값 보정
         analysis = {
@@ -92,12 +103,16 @@ Return valid JSON only."""
             "approach": result.get("approach", ""),
             "priority": result.get("priority", "low"),
             "detected_products": result.get("detected_products", []),
+            "buyer_or_competitor": result.get("buyer_or_competitor", "unclear"),
             # 바이어 인텔리전스 확장 필드
             "current_suppliers": result.get("current_suppliers", []),
             "company_size_estimate": result.get("company_size_estimate", "unknown"),
             "decision_maker_hint": result.get("decision_maker_hint", ""),
             "best_timing": result.get("best_timing", ""),
             "competitive_landscape": result.get("competitive_landscape", ""),
+            # 근거 투명성 필드
+            "evidence_quotes": result.get("evidence_quotes", []),
+            "reasoning_chain": result.get("reasoning_chain", ""),
         }
 
         company["analysis"] = analysis

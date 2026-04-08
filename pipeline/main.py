@@ -32,6 +32,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "lead-verifier"
 from .config import PipelineConfig
 from .batch_runner import run_batch
 from .output import write_csv, write_excel
+from .report_generator import generate_report
 
 
 def parse_args() -> argparse.Namespace:
@@ -195,6 +196,10 @@ async def async_main():
     if not args.csv_only:
         excel_path = os.path.join(config.output_dir, f"prospects_{timestamp}.xlsx")
         write_excel(results, excel_path, config_summary)
+
+    # HTML 리포트 출력
+    report_path = os.path.join(config.output_dir, f"report_{timestamp}.html")
+    generate_report(results, config, report_path)
 
     # 완료
     total = sum(len(r.get("companies", [])) for r in results)
