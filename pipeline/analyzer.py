@@ -47,61 +47,111 @@ Website Content (may be in local language):
 {page_text}
 
 === ANALYSIS REQUEST ===
-Analyze the target company and provide your assessment in the following JSON format:
+Analyze the target company and provide your assessment in the following JSON format.
+All text fields must be written in Korean (한국어로 작성).
 
 {{
   "sells_relevant_product": true/false,
   "confidence": "high" | "medium" | "low",
-  "match_score": 0-100,
-  "company_summary": "2-3 sentence summary of what this company does (in Korean / 한국어로)",
-  "match_reason": "Why this company is or isn't a good match (in Korean / 한국어로, 1-2 sentences)",
-  "approach": "Recommended approach strategy if this is a match (in Korean / 한국어로, 1-2 sentences)",
-  "priority": "high" | "medium" | "low",
+  "company_summary": "2-3 sentence summary of what this company does (한국어로)",
+  "match_reason": "Why this company is or isn't a good match (한국어로, 1-2 sentences)",
+  "approach": "Recommended approach strategy if this is a match (한국어로, 1-2 sentences)",
   "detected_products": ["list of relevant products/services this company deals with"],
   "buyer_or_competitor": "buyer | competitor | unclear",
-
   "current_suppliers": ["brands/suppliers mentioned or implied on their website"],
   "company_size_estimate": "small (<50) | medium (50-500) | large (500+) | unknown",
-  "decision_maker_hint": "Likely decision maker role/title (in Korean)",
-  "best_timing": "Best timing to approach (in Korean / 한국어로)",
-  "competitive_landscape": "Current supplier situation and switching potential (in Korean, 1 sentence)",
-
+  "decision_maker_hint": "Likely decision maker role/title (한국어로)",
+  "best_timing": "Best timing to approach (한국어로)",
+  "competitive_landscape": "Current supplier situation and switching potential (한국어로, 1 sentence)",
   "evidence_quotes": [
     {{
       "original": "Exact quote from their website in original language",
       "translated": "Same quote translated to Korean (한국어 번역)",
-      "relevance": "Why this quote matters for the match score (Korean, 1 sentence)"
-    }},
-    {{
-      "original": "Another key quote...",
-      "translated": "한국어 번역...",
-      "relevance": "이 인용이 매칭 점수에 영향을 준 이유"
+      "relevance": "Why this quote matters for the score (한국어로, 1 sentence)"
     }}
   ],
-  "reasoning_chain": "Step-by-step reasoning: 1) What this company does → 2) Why it connects to our client → 3) Therefore score is X (in Korean, 3-4 sentences)"
+  "reasoning_chain": "Step-by-step reasoning: 1) What this company does → 2) Why it connects to our client → 3) Therefore scores are X (한국어로, 3-4 sentences)",
+  "scores": {{
+    "product_fit": {{
+      "score": 0-100,
+      "reason": "제품 적합성 평가 근거 (한국어로, 1 sentence)"
+    }},
+    "buying_signal": {{
+      "score": 0-100,
+      "reason": "구매 신호 평가 근거 (한국어로, 1 sentence)"
+    }},
+    "company_capability": {{
+      "score": 0-100,
+      "reason": "업체 역량 평가 근거 (한국어로, 1 sentence)"
+    }},
+    "accessibility": {{
+      "score": 0-100,
+      "reason": "접근 용이성 평가 근거 (한국어로, 1 sentence)"
+    }},
+    "strategic_value": {{
+      "score": 0-100,
+      "reason": "전략적 가치 평가 근거 (한국어로, 1 sentence)"
+    }}
+  }}
 }}
 
-Guidelines:
-- match_score: 80-100 = ideal buyer, 50-79 = possible, 30-49 = weak, 0-29 = not relevant
-- evidence_quotes: Extract 2-4 ACTUAL quotes from the website text that support your score. Include original language + Korean translation.
-- reasoning_chain: Show your work - explain the logic step by step so the client can verify.
-- buyer_or_competitor: Classify clearly. A competitor makes similar products; a buyer NEEDS our products.
-- Be conservative with scores - only high scores for clear, strong matches.
+=== SCORING GUIDELINES ===
+product_fit (제품 적합성): How well do our client's products match what this company sells or needs?
+  80-100 = core product category match, 50-79 = adjacent/possible fit, 0-49 = weak or no fit
+
+buying_signal (구매 신호): Evidence that this company actively buys/imports similar products.
+  80-100 = clear import/sourcing activity, 50-79 = indirect signals, 0-49 = no visible signals
+
+company_capability (업체 역량): Does this company have the scale, infrastructure, and channels to handle our products?
+  80-100 = strong distribution network or retail presence, 50-79 = moderate, 0-49 = unclear or small
+
+accessibility (접근 용이성): How reachable is this company? (contact info, English presence, responsiveness signals)
+  80-100 = easy to contact and engage, 50-79 = moderate, 0-49 = hard to reach
+
+strategic_value (전략적 가치): Long-term value: market position, brand reputation, reference value, growth potential.
+  80-100 = strong strategic upside, 50-79 = moderate, 0-49 = limited
+
+- evidence_quotes: Extract 2-4 ACTUAL quotes from the website text. Include original language + Korean translation.
+- reasoning_chain: Show your work — explain the logic step by step so the client can verify.
+- buyer_or_competitor: A competitor makes similar products; a buyer NEEDS our products.
+- Be conservative with scores — only high scores for clear, strong matches.
 
 Return valid JSON only."""
 
     try:
-        result = llm.generate_json(prompt, max_tokens=1000)
+        result = llm.generate_json(prompt, max_tokens=1500)
+
+        # 5차원 점수 추출 및 score_breakdown 구성
+        raw_scores = result.get("scores", {})
+        score_breakdown = {
+            dim: {
+                "score": _safe_score(raw_scores.get(dim, {}).get("score", 0)),
+                "reason": raw_scores.get(dim, {}).get("reason", ""),
+            }
+            for dim in DEFAULT_WEIGHTS
+        }
+
+        # 가중 평균 종합 점수 (코드로 계산, LLM 아님)
+        total_score = compute_weighted_score(score_breakdown)
+
+        # 종합 점수 기반 우선순위 도출
+        if total_score >= 80:
+            priority = "high"
+        elif total_score >= 50:
+            priority = "medium"
+        else:
+            priority = "low"
 
         # 필수 필드 기본값 보정
         analysis = {
             "sells_relevant_product": result.get("sells_relevant_product", False),
             "confidence": result.get("confidence", "low"),
-            "match_score": _safe_score(result.get("match_score", 0)),
+            "match_score": total_score,
+            "score_breakdown": score_breakdown,
             "summary": result.get("company_summary", ""),
             "match_reason": result.get("match_reason", ""),
             "approach": result.get("approach", ""),
-            "priority": result.get("priority", "low"),
+            "priority": priority,
             "detected_products": result.get("detected_products", []),
             "buyer_or_competitor": result.get("buyer_or_competitor", "unclear"),
             # 바이어 인텔리전스 확장 필드
@@ -118,7 +168,6 @@ Return valid JSON only."""
         company["analysis"] = analysis
 
         score = analysis["match_score"]
-        priority = analysis["priority"]
         reason = analysis["match_reason"][:60]
         print(f"     📊 매칭: {score}점 ({priority}) - {reason}")
 
@@ -150,6 +199,9 @@ def _empty_analysis(reason: str) -> dict:
         "sells_relevant_product": False,
         "confidence": "low",
         "match_score": 0,
+        "score_breakdown": {
+            dim: {"score": 0, "reason": ""} for dim in ("product_fit", "buying_signal", "company_capability", "accessibility", "strategic_value")
+        },
         "summary": reason,
         "match_reason": reason,
         "approach": "",
@@ -165,3 +217,25 @@ def _safe_score(value) -> int:
         return max(0, min(100, score))
     except (TypeError, ValueError):
         return 0
+
+
+DEFAULT_WEIGHTS = {
+    "product_fit": 30,
+    "buying_signal": 25,
+    "company_capability": 20,
+    "accessibility": 15,
+    "strategic_value": 10,
+}
+
+
+def compute_weighted_score(scores: dict, weights: dict | None = None) -> int:
+    """가중 평균 종합 점수 계산. LLM이 아닌 코드로 일관성 보장."""
+    w = weights or DEFAULT_WEIGHTS
+    total_weight = sum(w.values())
+    if total_weight == 0:
+        return 0
+    weighted_sum = sum(
+        _safe_score(scores.get(key, {}).get("score", 0)) * w.get(key, 0)
+        for key in DEFAULT_WEIGHTS
+    )
+    return round(weighted_sum / total_weight)
