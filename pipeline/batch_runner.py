@@ -17,6 +17,7 @@ from .email_drafter import draft_emails
 from .followup_drafter import draft_followup_sequence
 from .exhibition_finder import find_exhibitions, match_exhibitions_to_companies
 from .run_logger import RunLogger
+from .evidence_collector import collect_evidence
 
 
 async def run_single_country(
@@ -173,6 +174,44 @@ async def run_single_country(
                 "high_priority": sum(1 for c in candidates if c.get("analysis", {}).get("priority") == "high"),
                 "medium_priority": sum(1 for c in candidates if c.get("analysis", {}).get("priority") == "medium"),
             })
+
+        # Step 5.5: 증거 수집 (SNS + 웹 크롤링)
+        if scrape_fn and candidates:
+            if logger:
+                logger.log_step(country, "evidence_collector", "started")
+
+            print(f"\n  🔍 증거 수집 중...")
+            from playwright.async_api import async_playwright
+
+            async with async_playwright() as p:
+                browser = await p.chromium.launch(headless=True)
+                context = await browser.new_context(
+                    user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+                )
+
+                for candidate in candidates:
+                    score = candidate.get("analysis", {}).get("match_score", 0)
+                    if score < 30:
+                        continue
+                    try:
+                        evidence = await collect_evidence(
+                            candidate, context, config.screenshot_dir,
+                            llm, client_profile,
+                        )
+                        candidate["evidence"] = evidence
+                        print(f"     📋 {candidate.get('name', '?')}: 증거 {len(evidence)}건")
+                    except Exception as e:
+                        print(f"     ⚠️ {candidate.get('name', '?')} 증거 수집 실패: {str(e)[:60]}")
+                        candidate["evidence"] = []
+                    await asyncio.sleep(config.polite_delay)
+
+                await browser.close()
+
+            if logger:
+                total_evidence = sum(len(c.get("evidence", [])) for c in candidates)
+                logger.log_step(country, "evidence_collector", "completed", {
+                    "total_evidence": total_evidence,
+                })
 
         # Step 6: 이메일 초안
         if logger:
