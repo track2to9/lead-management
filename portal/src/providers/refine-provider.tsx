@@ -51,6 +51,7 @@ export function RefineProvider({ children }: { children: React.ReactNode }) {
               name: "exhibitions",
               meta: { label: "전시회" },
             },
+            { name: "evidence" },
           ]}
           options={{
             syncWithLocation: true,

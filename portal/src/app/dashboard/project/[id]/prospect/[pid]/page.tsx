@@ -8,6 +8,9 @@ import Link from "next/link";
 import { useState } from "react";
 import type { Project, Prospect, Feedback } from "@/lib/types";
 import ScoreBreakdownChart from "@/components/ScoreBreakdownChart";
+import EvidenceCard from "@/components/EvidenceCard";
+import EvidenceModal from "@/components/EvidenceModal";
+import type { Evidence } from "@/lib/types";
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -16,6 +19,7 @@ export default function ProspectDetailPage() {
   const router = useRouter();
   const { data: identity } = useGetIdentity<{ id: string; email: string }>();
   const [reason, setReason] = useState("");
+  const [selectedEvidence, setSelectedEvidence] = useState<Evidence | null>(null);
 
   const { query: pq } = useOne<Project>({ resource: "projects", id });
   const { query: prq } = useOne<Prospect>({ resource: "prospects", id: pid });
@@ -25,6 +29,13 @@ export default function ProspectDetailPage() {
     sorters: [{ field: "timestamp", order: "asc" }],
     pagination: { pageSize: 50 },
   });
+  const { query: evq } = useList<Evidence>({
+    resource: "evidence",
+    filters: [{ field: "prospect_id", operator: "eq", value: pid }],
+    sorters: [{ field: "collected_at", order: "desc" }],
+    pagination: { pageSize: 50 },
+  });
+  const evidenceList = evq.data?.data || [];
 
   const { mutate: updateProspect } = useUpdate();
   const { mutate: createFeedback } = useCreate();
@@ -136,6 +147,24 @@ export default function ProspectDetailPage() {
               ))}
             </Card>
           )}
+
+          {evidenceList.length > 0 && (
+            <Card title={`증거 자료 (${evidenceList.length}건)`} size="small">
+              {evidenceList.map((ev) => (
+                <EvidenceCard
+                  key={ev.id}
+                  evidence={ev}
+                  onScreenshotClick={(e) => setSelectedEvidence(e)}
+                />
+              ))}
+            </Card>
+          )}
+
+          <EvidenceModal
+            evidence={selectedEvidence}
+            open={!!selectedEvidence}
+            onClose={() => setSelectedEvidence(null)}
+          />
 
           {prospect.approach && (
             <Card title="접근 전략" size="small"><Paragraph>{prospect.approach}</Paragraph></Card>
