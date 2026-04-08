@@ -99,3 +99,16 @@ export interface Exhibition {
   relevance?: string;
   action_suggestion?: string;
 }
+
+export interface Evidence {
+  id: string;
+  prospect_id: string;
+  source_url: string;
+  source_type: "website" | "linkedin" | "facebook" | "instagram" | "x" | "forum" | "news";
+  screenshot_path?: string;
+  text_excerpt?: string;
+  text_translated?: string;
+  related_scores: string[];
+  collected_at: string;
+  content_date?: string;
+}
