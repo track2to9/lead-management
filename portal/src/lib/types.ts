@@ -1,3 +1,34 @@
+export interface ScoreDimension {
+  score: number;
+  reason: string;
+}
+
+export interface ScoreBreakdown {
+  product_fit: ScoreDimension;
+  buying_signal: ScoreDimension;
+  company_capability: ScoreDimension;
+  accessibility: ScoreDimension;
+  strategic_value: ScoreDimension;
+}
+
+export type ScoreWeights = Record<keyof ScoreBreakdown, number>;
+
+export const DEFAULT_SCORE_WEIGHTS: ScoreWeights = {
+  product_fit: 30,
+  buying_signal: 25,
+  company_capability: 20,
+  accessibility: 15,
+  strategic_value: 10,
+};
+
+export const SCORE_DIMENSION_LABELS: Record<keyof ScoreBreakdown, string> = {
+  product_fit: "제품 적합도",
+  buying_signal: "구매 시그널",
+  company_capability: "기업 규모/역량",
+  accessibility: "접근 가능성",
+  strategic_value: "전략적 가치",
+};
+
 export interface Project {
   id: string;
   user_id: string;
@@ -12,6 +43,7 @@ export interface Project {
   emails_drafted: number;
   report_url?: string;
   excel_url?: string;
+  score_weights?: ScoreWeights;
   created_at: string;
   updated_at: string;
 }
@@ -23,6 +55,7 @@ export interface Prospect {
   url?: string;
   country?: string;
   match_score: number;
+  score_breakdown?: ScoreBreakdown;
   priority: "high" | "medium" | "low";
   buyer_or_competitor: "buyer" | "competitor" | "unclear";
   summary?: string;
