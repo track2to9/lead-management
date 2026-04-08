@@ -33,7 +33,7 @@ export interface Project {
   id: string;
   user_id: string;
   name: string;
-  status: "active" | "reviewing" | "completed";
+  status: "active" | "analyzing" | "results_ready" | "refining" | "completed";
   client_name: string;
   product: string;
   countries: string;
@@ -44,6 +44,8 @@ export interface Project {
   report_url?: string;
   excel_url?: string;
   score_weights?: ScoreWeights;
+  refinement_conditions?: string[];
+  refinement_round?: number;
   created_at: string;
   updated_at: string;
 }
@@ -76,6 +78,7 @@ export interface Prospect {
   source?: string;
   source_type?: string;
   feedback_status: "pending" | "accepted" | "rejected" | "needs_more";
+  round?: number;
   created_at: string;
 }
 
