@@ -7,6 +7,7 @@ import { HomeOutlined, CheckCircleOutlined, CloseCircleOutlined, SyncOutlined, L
 import Link from "next/link";
 import { useState } from "react";
 import type { Project, Prospect, Feedback } from "@/lib/types";
+import ScoreBreakdownChart from "@/components/ScoreBreakdownChart";
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -167,6 +168,14 @@ export default function ProspectDetailPage() {
 
         {/* Right */}
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          {prospect.score_breakdown && (
+            <Card title="매칭 점수 분석" size="small">
+              <ScoreBreakdownChart
+                breakdown={prospect.score_breakdown}
+                weights={project.score_weights}
+              />
+            </Card>
+          )}
           <Card title="바이어 인텔리전스" size="small">
             <Descriptions column={1} size="small" labelStyle={{ fontWeight: 600, fontSize: 12, color: "#999" }}>
               <Descriptions.Item label="현재 공급업체">
