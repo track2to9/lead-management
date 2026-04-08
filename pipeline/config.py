@@ -79,12 +79,16 @@ class PipelineConfig:
     refinement_conditions: list[str] = field(default_factory=list)
     refinement_round: int = 1
     feedback_patterns: dict = field(default_factory=dict)  # pattern_analyzer output
+    supabase_url: str = ""
+    supabase_key: str = ""  # service role key
 
     def __post_init__(self):
         # .env에서 LLM 프로바이더 로드
         env_provider = os.getenv("LLM_PROVIDER", "").lower()
         if env_provider and env_provider in ("claude", "openai", "gemini"):
             self.llm.provider = env_provider
+        self.supabase_url = os.getenv("NEXT_PUBLIC_SUPABASE_URL", "")
+        self.supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
 
     def validate(self):
         """필수 설정값 검증"""

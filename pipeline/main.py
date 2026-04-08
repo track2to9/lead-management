@@ -118,6 +118,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--round", type=int, default=1,
                         help="분석 회차 (재분석 시 증가)")
 
+    # Supabase upload options
+    parser.add_argument(
+        "--project-id", default="",
+        help="Supabase project UUID — required when using --upload",
+    )
+    parser.add_argument(
+        "--upload", action="store_true",
+        help="Upload prospects + evidence to Supabase after the pipeline finishes",
+    )
+
     return parser.parse_args()
 
 
@@ -206,6 +216,15 @@ async def async_main():
     # HTML 리포트 출력
     report_path = os.path.join(config.output_dir, f"report_{timestamp}.html")
     generate_report(results, config, report_path)
+
+    # Supabase 업로드 (--upload --project-id 옵션 제공 시)
+    if args.upload and args.project_id:
+        print(f"\n  📤 Supabase 업로드 중 (project: {args.project_id[:8]}…)")
+        from .supabase_uploader import upload_evidence
+        all_companies = [c for r in results for c in r.get("companies", [])]
+        upload_evidence(args.project_id, all_companies)
+    elif args.upload and not args.project_id:
+        print("\n  ⚠️  --upload 옵션은 --project-id 와 함께 사용해야 합니다.")
 
     # 완료
     total = sum(len(r.get("companies", [])) for r in results)
