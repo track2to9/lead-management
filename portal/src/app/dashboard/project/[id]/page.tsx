@@ -228,16 +228,48 @@ export default function ProjectDetailPage() {
           </div>
           <div>
             <Card size="small" style={{ marginBottom: 16 }}>
-              <PatternInsightCard
-                patterns={{
-                  summary: stats.accepted >= 5
+              {(() => {
+                const patternFeedback = feedback
+                  .filter(f => f.type === "pattern_analysis")
+                  .sort((a, b) => b.timestamp.localeCompare(a.timestamp))[0];
+
+                let patternData = {
+                  summary: stats.accepted >= 2
                     ? `${stats.accepted}개의 승인된 바이어에서 패턴을 분석할 수 있습니다.`
-                    : `패턴 분석을 위해 최소 5개의 바이어를 승인해주세요. (현재 ${stats.accepted}개)`,
-                  preferred_traits: [],
-                  avoided_traits: [],
-                  suggested_conditions: [],
-                }}
-              />
+                    : `패턴 분석을 위해 최소 2개의 바이어를 승인해주세요. (현재 ${stats.accepted}개)`,
+                  preferred_traits: [] as string[],
+                  avoided_traits: [] as string[],
+                  suggested_conditions: [] as string[],
+                };
+
+                if (patternFeedback) {
+                  try {
+                    const parsed = JSON.parse(patternFeedback.text);
+                    patternData = {
+                      summary: parsed.summary || patternData.summary,
+                      preferred_traits: parsed.preferred_traits || [],
+                      avoided_traits: parsed.avoided_traits || [],
+                      suggested_conditions: parsed.suggested_conditions || [],
+                    };
+                  } catch {}
+                }
+
+                return (
+                  <PatternInsightCard
+                    patterns={patternData}
+                    onAddCondition={(condition) => {
+                      const current = project.refinement_conditions || [];
+                      if (!current.includes(condition)) {
+                        updateProject({
+                          resource: "projects",
+                          id,
+                          values: { refinement_conditions: [...current, condition], status: "refining" },
+                        });
+                      }
+                    }}
+                  />
+                );
+              })()}
             </Card>
             <Card size="small" title="프로젝트 타임라인">
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>

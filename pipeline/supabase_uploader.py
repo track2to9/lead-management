@@ -127,7 +127,7 @@ def upload_pattern_analysis(project_id: str, patterns: dict) -> None:
         client.table("feedback").insert(
             {
                 "project_id": project_id,
-                "feedback_type": "pattern_analysis",
+                "type": "pattern_analysis",
                 "text": json.dumps(patterns, ensure_ascii=False),
             }
         ).execute()

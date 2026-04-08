@@ -220,9 +220,39 @@ async def async_main():
     # Supabase 업로드 (--upload --project-id 옵션 제공 시)
     if args.upload and args.project_id:
         print(f"\n  📤 Supabase 업로드 중 (project: {args.project_id[:8]}…)")
-        from .supabase_uploader import upload_evidence
+        from .supabase_uploader import upload_evidence, upload_pattern_analysis, _get_client
         all_companies = [c for r in results for c in r.get("companies", [])]
         upload_evidence(args.project_id, all_companies)
+
+        # Pattern analysis (if enough feedback exists in DB)
+        try:
+            client = _get_client()
+            accepted_resp = client.table("prospects").select("*").eq("project_id", args.project_id).eq("feedback_status", "accepted").execute()
+            rejected_resp = client.table("prospects").select("*").eq("project_id", args.project_id).eq("feedback_status", "rejected").execute()
+
+            accepted = accepted_resp.data or []
+            rejected = rejected_resp.data or []
+
+            if len(accepted) >= 2 or len(rejected) >= 2:
+                from .pattern_analyzer import analyze_feedback_patterns
+                from .llm_client import create_llm_client
+                llm = create_llm_client(config.llm)
+
+                # Convert DB rows to the format pattern_analyzer expects
+                for p in accepted + rejected:
+                    p["analysis"] = {
+                        "match_score": p.get("match_score", 0),
+                        "score_breakdown": p.get("score_breakdown", {}),
+                        "detected_products": p.get("detected_products", []),
+                        "company_size_estimate": p.get("company_size", "unknown"),
+                        "current_suppliers": p.get("current_suppliers", []),
+                    }
+
+                patterns = analyze_feedback_patterns(accepted, rejected, llm)
+                upload_pattern_analysis(args.project_id, patterns)
+                print(f"  📊 패턴 분석 완료: 선호 {len(patterns.get('preferred_traits', []))}건, 회피 {len(patterns.get('avoided_traits', []))}건")
+        except Exception as e:
+            print(f"  ⚠️ 패턴 분석 건너뜀: {e}")
     elif args.upload and not args.project_id:
         print("\n  ⚠️  --upload 옵션은 --project-id 와 함께 사용해야 합니다.")
 
