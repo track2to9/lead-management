@@ -15,7 +15,9 @@ export default function NewQuotationPage() {
     resource: "quotation_templates",
     pagination: { pageSize: 50 },
   });
-  const { mutate: createQuotation, isLoading: creating } = useCreate();
+  const createHook = useCreate();
+  const createQuotation = createHook.mutate;
+  const creating = false;
 
   const templates = query.data?.data || [];
 

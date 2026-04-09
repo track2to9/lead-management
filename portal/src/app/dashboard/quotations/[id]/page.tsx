@@ -33,12 +33,15 @@ export default function QuotationEditorPage() {
   const { mutate: updateItem } = useUpdate();
   const { mutate: deleteItem } = useDelete();
 
-  const quotation = qq.data?.data;
+  const q = qq.data?.data as Quotation | undefined;
   const items = iq.data?.data || [];
 
-  if (qq.isLoading || !quotation) {
+  if (qq.isLoading || !q) {
     return <div style={{ textAlign: "center", padding: 64 }}><Spin size="large" /></div>;
   }
+
+  // TS can't narrow `q` inside closures after early return. Force it.
+  const quotation = q as Quotation;
 
   const rates = quotation.exchange_rates || {};
   const h = quotation.company_header || {};
@@ -87,8 +90,8 @@ export default function QuotationEditorPage() {
     const item = items.find((i) => i.id === itemId);
     if (!item) return;
     const newCells = { ...item.cells, [key]: value };
-    const hasPrice = quotation.columns.some((c) => c.key === "price");
-    const hasQty = quotation.columns.some((c) => c.key === "qty");
+    const hasPrice = q?.columns.some((c) => c.key === "price");
+    const hasQty = q?.columns.some((c) => c.key === "qty");
     if (hasPrice && hasQty) {
       newCells.amount = Math.round((Number(newCells.price) || 0) * (Number(newCells.qty) || 0) * 100) / 100;
     }
@@ -145,7 +148,7 @@ export default function QuotationEditorPage() {
   }
 
   // ============================================================
-  // TAB 1: 견적서 (Document View — looks like actual quotation)
+  // TAB 1: 견적서 (Document View — looks like actual q)
   // ============================================================
   const tabViewer = (
     <div style={{ maxWidth: 800, margin: "0 auto", background: "#fff", border: "1px solid #e0e0e0", borderRadius: 4, padding: "40px 48px", position: "relative", minHeight: 600 }}>
@@ -153,35 +156,73 @@ export default function QuotationEditorPage() {
         <div style={{ position: "absolute", top: "40%", left: "50%", transform: "translate(-50%, -50%) rotate(-30deg)", fontSize: 72, color: "rgba(0,0,0,0.03)", fontWeight: 900, pointerEvents: "none", userSelect: "none" }}>DRAFT</div>
       )}
 
-      {/* Company Header */}
-      <div style={{ textAlign: "center", marginBottom: 32 }}>
-        <div style={{ fontSize: 20, fontWeight: 900, marginBottom: 4 }}>
-          <InlineText value={h.name || ""} onSave={(v) => saveHeader("name", v)} placeholder="회사명" style={{ fontSize: 20, fontWeight: 900 }} />
+      {/* ===== HEADER: Logo + Title ===== */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
+        {/* Left: Logo */}
+        <div style={{ flex: 1 }}>
+          {h.logo_url ? (
+            <img src={h.logo_url} alt="Logo" style={{ maxHeight: 60, maxWidth: 200 }} />
+          ) : (
+            <div style={{ border: "1px dashed #d9d9d9", padding: "8px 16px", display: "inline-block", cursor: "pointer", color: "#999", fontSize: 11 }}
+              onClick={() => {
+                const url = prompt("로고 이미지 URL을 입력하세요:");
+                if (url) saveHeader("logo_url", url);
+              }}>
+              🖼 로고 이미지 추가
+            </div>
+          )}
         </div>
-        <div style={{ fontSize: 11, color: "#666" }}>
-          <InlineText value={h.address || ""} onSave={(v) => saveHeader("address", v)} placeholder="주소" />
-        </div>
-        <div style={{ fontSize: 11, color: "#666" }}>
-          Tel: <InlineText value={h.tel || ""} onSave={(v) => saveHeader("tel", v)} placeholder="전화번호" />
-          {" | "}
-          <InlineText value={h.web || ""} onSave={(v) => saveHeader("web", v)} placeholder="웹사이트" />
+        {/* Right: Title */}
+        <div style={{ textAlign: "right" }}>
+          <div style={{ fontSize: 28, fontWeight: 900, color: "#cc0000", fontStyle: "italic" }}>
+            <InlineText value={h.doc_title || "Quotation"} onSave={(v) => saveHeader("doc_title", v)} placeholder="Quotation" style={{ fontSize: 28, fontWeight: 900, color: "#cc0000", fontStyle: "italic" }} />
+          </div>
         </div>
       </div>
 
-      {/* Ref / Date / Client */}
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20, fontSize: 13 }}>
-        <div>
-          <strong>Ref No: </strong>
-          <InlineText value={quotation.ref_no} onSave={(v) => saveQ({ ref_no: v })} placeholder="Ref No" />
+      {/* Divider line */}
+      <div style={{ height: 3, background: "linear-gradient(to right, #999, #ccc)", marginBottom: 12 }} />
+
+      {/* ===== Company Info (below logo) ===== */}
+      <div style={{ fontSize: 11, color: "#333", lineHeight: 1.8, marginBottom: 20 }}>
+        <div><InlineText value={h.address || ""} onSave={(v) => saveHeader("address", v)} placeholder="주소 (예: 509 Hyundai Tower, 293-19, Olympic-ro...)" /></div>
+        <div>Tel : <InlineText value={h.tel || ""} onSave={(v) => saveHeader("tel", v)} placeholder="+82 70 4103 0770" /></div>
+        <div>Website: <InlineText value={h.web || ""} onSave={(v) => saveHeader("web", v)} placeholder="www.example.com" /></div>
+      </div>
+
+      {/* ===== 3-Column Info: To/From/Attn/Subject (Left) + Ref/Date (Right) ===== */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 32, marginBottom: 24, fontSize: 13 }}>
+        {/* Left: To / From / Attn / Subject */}
+        <div style={{ lineHeight: 2.2 }}>
+          <div style={{ display: "flex", gap: 8 }}>
+            <strong style={{ minWidth: 60 }}>To</strong>
+            <span>: <InlineText value={quotation.client_name || ""} onSave={(v) => saveQ({ client_name: v })} placeholder="업체명" style={{ color: "#cc0000", fontWeight: 600 }} /></span>
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <strong style={{ minWidth: 60 }}>From</strong>
+            <span>: <InlineText value={h.from_name || h.name || ""} onSave={(v) => saveHeader("from_name", v)} placeholder="발신 회사명" /></span>
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <strong style={{ minWidth: 60 }}>Attn.</strong>
+            <span>: <InlineText value={h.attn || ""} onSave={(v) => saveHeader("attn", v)} placeholder="To whom it may concern" /></span>
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <strong style={{ minWidth: 60 }}>Subject</strong>
+            <span>: <InlineText value={h.subject || ""} onSave={(v) => saveHeader("subject", v)} placeholder="Offer for..." style={{ color: "#cc0000" }} /></span>
+          </div>
         </div>
-        <div>
-          <strong>Date: </strong>
-          <InlineText value={quotation.date} onSave={(v) => saveQ({ date: v })} placeholder="YYYY-MM-DD" />
+        {/* Right: Ref / Date */}
+        <div style={{ lineHeight: 2.2, textAlign: "right" }}>
+          <div><strong>Ref No : </strong><InlineText value={quotation.ref_no} onSave={(v) => saveQ({ ref_no: v })} placeholder="AG26-OFR022701" style={{ color: "#cc0000" }} /></div>
+          <div><strong>Date : </strong><InlineText value={quotation.date} onSave={(v) => saveQ({ date: v })} placeholder="27 Feb, 2026" style={{ color: "#cc0000" }} /></div>
         </div>
       </div>
-      <div style={{ marginBottom: 20, fontSize: 13 }}>
-        <strong>To: </strong>
-        <InlineText value={quotation.client_name || ""} onSave={(v) => saveQ({ client_name: v })} placeholder="업체명" style={{ fontWeight: 600 }} />
+
+      {/* Dear Sir, intro */}
+      <div style={{ fontSize: 12, marginBottom: 16, lineHeight: 1.8 }}>
+        <InlineText value={h.greeting || "Dear Sir,"} onSave={(v) => saveHeader("greeting", v)} placeholder="Dear Sir," />
+        <br />
+        <InlineText value={h.intro || "We are pleased to offer the following goods as per terms and conditions set forth hereunder."} onSave={(v) => saveHeader("intro", v)} placeholder="인사말/소개문" style={{ fontSize: 11 }} />
       </div>
 
       {/* Items Table — actual quotation look */}
@@ -219,15 +260,49 @@ export default function QuotationEditorPage() {
           values: { quotation_id: id, sort_order: items.length, cells: {}, cost_price: 0, cost_currency: "CNY", selling_price: 0, margin_percent: 0, margin_amount: 0, extra_costs: [] },
         }, { onSuccess: () => iq.refetch() })}>행 추가</Button>
 
-      {/* Footer — inline editable */}
-      <div style={{ fontSize: 11, lineHeight: 2.2, borderTop: "1px solid #e0e0e0", paddingTop: 16 }}>
-        <div><strong>Payment: </strong><InlineText value={f.payment_terms || ""} onSave={(v) => saveFooter("payment_terms", v)} placeholder="T/T in 30 days..." /></div>
-        <div><strong>Delivery: </strong><InlineText value={f.delivery || ""} onSave={(v) => saveFooter("delivery", v)} placeholder="Within 8 weeks..." /></div>
-        <div><strong>Packing: </strong><InlineText value={f.packing || ""} onSave={(v) => saveFooter("packing", v)} placeholder="Export standard..." /></div>
-        <div><strong>Validity: </strong><InlineText value={f.validity || ""} onSave={(v) => saveFooter("validity", v)} placeholder="31 Jan, 2026" /></div>
-        {(f.remarks || editingField === "Remarks") && (
-          <div><strong>Remarks: </strong><InlineText value={f.remarks || ""} onSave={(v) => saveFooter("remarks", v)} placeholder="Remarks" /></div>
-        )}
+      {/* ===== Terms & Conditions ===== */}
+      <div style={{ fontSize: 11, lineHeight: 2.2, borderTop: "1px solid #e0e0e0", paddingTop: 16, marginTop: 8 }}>
+        <div style={{ fontWeight: 700, marginBottom: 4 }}>※ Terms & Conditions</div>
+        <div style={{ display: "grid", gridTemplateColumns: "100px 1fr", gap: "0 8px" }}>
+          <strong>Payment</strong>
+          <span>: <InlineText value={f.payment_terms || ""} onSave={(v) => saveFooter("payment_terms", v)} placeholder="By T/T in advance or an irrevocable, at sight L/C..." style={{ color: "#cc0000" }} /></span>
+          <strong>Packing</strong>
+          <span>: <InlineText value={f.packing || ""} onSave={(v) => saveFooter("packing", v)} placeholder="Export standard packing (Wooden box)" /></span>
+          <strong>Delivery</strong>
+          <span>: <InlineText value={f.delivery || ""} onSave={(v) => saveFooter("delivery", v)} placeholder="Within 8 weeks after order confirmation" /></span>
+          <strong>Validity</strong>
+          <span>: <InlineText value={f.validity || ""} onSave={(v) => saveFooter("validity", v)} placeholder="31 Mar, 2026" style={{ color: "#cc0000" }} /></span>
+          <strong>Remarks</strong>
+          <span>: <InlineText value={f.remarks || ""} onSave={(v) => saveFooter("remarks", v)} placeholder="Bank reference, etc." /></span>
+        </div>
+      </div>
+
+      {/* ===== Signature Block ===== */}
+      <div style={{ marginTop: 40, display: "flex", justifyContent: "flex-end" }}>
+        <div style={{ textAlign: "center", minWidth: 200 }}>
+          <div style={{ fontSize: 10, fontStyle: "italic", color: "#666", marginBottom: 8 }}>For and on behalf of</div>
+          <div style={{ fontSize: 14, fontWeight: 900, letterSpacing: 2, marginBottom: 4 }}>
+            <InlineText value={f.sig_company || h.from_name || h.name || ""} onSave={(v) => saveFooter("sig_company", v)} placeholder="COMPANY NAME" style={{ fontSize: 14, fontWeight: 900, letterSpacing: 2 }} />
+          </div>
+          {/* Signature image */}
+          {f.sig_image_url ? (
+            <img src={f.sig_image_url} alt="Signature" style={{ maxHeight: 50, margin: "8px auto", display: "block", cursor: "pointer" }}
+              onClick={() => { const url = prompt("서명 이미지 URL:", f.sig_image_url); if (url !== null) saveFooter("sig_image_url", url); }} />
+          ) : (
+            <div style={{ border: "1px dashed #d9d9d9", padding: "12px 24px", margin: "8px auto", cursor: "pointer", color: "#999", fontSize: 10 }}
+              onClick={() => { const url = prompt("서명 이미지 URL을 입력하세요:"); if (url) saveFooter("sig_image_url", url); }}>
+              🖊 서명 이미지 추가
+            </div>
+          )}
+          <div style={{ borderTop: "1px solid #000", paddingTop: 4, marginTop: 4 }}>
+            <div style={{ fontSize: 11, fontWeight: 700 }}>
+              <InlineText value={f.sig_name || ""} onSave={(v) => saveFooter("sig_name", v)} placeholder="KIM JOO SIK" style={{ fontWeight: 700 }} />
+              {" / "}
+              <InlineText value={f.sig_title || ""} onSave={(v) => saveFooter("sig_title", v)} placeholder="Managing Director" />
+            </div>
+            <div style={{ fontSize: 9, color: "#666", fontStyle: "italic" }}>Authorized Signature</div>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -413,7 +488,7 @@ export default function QuotationEditorPage() {
         { key: "calc", label: <><CalculatorOutlined /> 계산</>, children: tabCalc },
       ]} />
 
-      <QuotationPDF quotation={quotation} items={items} open={showPDF} onClose={() => setShowPDF(false)} />
+      <QuotationPDF quotation={q} items={items} open={showPDF} onClose={() => setShowPDF(false)} />
     </div>
   );
 }
