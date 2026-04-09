@@ -2,8 +2,9 @@
 
 import { useOne, useList, useUpdate, useCreate, useDelete } from "@refinedev/core";
 import { useParams } from "next/navigation";
-import { Input, InputNumber, Select, Button, Space, Typography, Breadcrumb, Tag, Spin, Tabs } from "antd";
-import { HomeOutlined, CheckCircleOutlined, FilePdfOutlined, PlusOutlined, DeleteOutlined, CalculatorOutlined, FileTextOutlined } from "@ant-design/icons";
+import { Input, InputNumber, Select, Button, Space, Typography, Breadcrumb, Tag, Spin, Tabs, DatePicker, Popconfirm } from "antd";
+import { HomeOutlined, CheckCircleOutlined, FilePdfOutlined, PlusOutlined, DeleteOutlined, CalculatorOutlined, FileTextOutlined, MinusCircleOutlined } from "@ant-design/icons";
+import dayjs from "dayjs";
 import Link from "next/link";
 import { useState, useRef } from "react";
 import type { Quotation, QuotationItem, QuotationColumn, ExtraCost } from "@/lib/types";
@@ -187,33 +188,111 @@ export default function QuotationEditorPage() {
         <div>Website: <InlineText value={h.web || ""} onSave={(v) => saveHeader("web", v)} placeholder="www.example.com" /></div>
       </div>
 
-      {/* ===== 3-Column Info: To/From/Attn/Subject (Left) + Ref/Date (Right) ===== */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 32, marginBottom: 24, fontSize: 13 }}>
-        {/* Left: To / From / Attn / Subject */}
-        <div style={{ lineHeight: 2.2 }}>
-          <div style={{ display: "flex", gap: 8 }}>
-            <strong style={{ minWidth: 60 }}>To</strong>
-            <span>: <InlineText value={quotation.client_name || ""} onSave={(v) => saveQ({ client_name: v })} placeholder="업체명" style={{ color: "#cc0000", fontWeight: 600 }} /></span>
+      {/* ===== Dynamic Header Fields (Left + Right) ===== */}
+      {(() => {
+        // 기본 좌측 필드
+        const defaultLeftFields = [
+          { key: "client_name", label: "To", value: quotation.client_name || "", isRed: true, isQ: true },
+          { key: "from_name", label: "From", value: h.from_name || h.name || "" },
+          { key: "attn", label: "Attn.", value: h.attn || "" },
+          { key: "subject", label: "Subject", value: h.subject || "", isRed: true },
+        ];
+        // 추가된 커스텀 좌측 필드
+        const extraLeftFields = (h.extra_left_fields || []) as unknown as { key: string; label: string; value: string }[];
+
+        // 기본 우측 필드
+        const defaultRightFields = [
+          { key: "ref_no", label: "Ref No", value: quotation.ref_no, isRed: true, isQ: true },
+          { key: "date", label: "Date", value: quotation.date, isRed: true, isQ: true, isDate: true },
+        ];
+        const extraRightFields = (h.extra_right_fields || []) as unknown as { key: string; label: string; value: string }[];
+
+        return (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 32, marginBottom: 24, fontSize: 13 }}>
+            {/* Left fields */}
+            <div style={{ lineHeight: 2.4 }}>
+              {defaultLeftFields.map((field) => (
+                <div key={field.key} style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <strong style={{ minWidth: 70 }}>{field.label}</strong>
+                  <span>: <InlineText
+                    value={field.value}
+                    onSave={(v) => field.isQ ? saveQ({ [field.key]: v }) : saveHeader(field.key, v)}
+                    placeholder={field.label}
+                    style={field.isRed ? { color: "#cc0000", fontWeight: 600 } : {}}
+                  /></span>
+                </div>
+              ))}
+              {extraLeftFields.map((field, i) => (
+                <div key={`el-${i}`} style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <InlineText value={field.label} onSave={(v) => {
+                    const arr = [...extraLeftFields]; arr[i] = { ...arr[i], label: v };
+                    saveHeader("extra_left_fields", arr as unknown as string);
+                  }} placeholder="필드명" style={{ minWidth: 70, fontWeight: 700 }} />
+                  <span>: <InlineText value={field.value} onSave={(v) => {
+                    const arr = [...extraLeftFields]; arr[i] = { ...arr[i], value: v };
+                    saveHeader("extra_left_fields", arr as unknown as string);
+                  }} placeholder="값 입력" /></span>
+                  <MinusCircleOutlined style={{ color: "#ff4d4f", cursor: "pointer", fontSize: 11 }}
+                    onClick={() => {
+                      const arr = extraLeftFields.filter((_, j) => j !== i);
+                      saveHeader("extra_left_fields", arr as unknown as string);
+                    }} />
+                </div>
+              ))}
+              <Button type="dashed" size="small" icon={<PlusOutlined />} style={{ marginTop: 4, fontSize: 11 }}
+                onClick={() => {
+                  const arr = [...extraLeftFields, { key: `custom_${Date.now()}`, label: "", value: "" }];
+                  saveHeader("extra_left_fields", arr as unknown as string);
+                }}>좌측 필드 추가</Button>
+            </div>
+
+            {/* Right fields */}
+            <div style={{ lineHeight: 2.4, textAlign: "right" }}>
+              {defaultRightFields.map((field) => (
+                <div key={field.key} style={{ display: "flex", gap: 8, justifyContent: "flex-end", alignItems: "center" }}>
+                  <strong>{field.label} : </strong>
+                  {field.isDate ? (
+                    <DatePicker
+                      value={field.value ? dayjs(field.value) : undefined}
+                      onChange={(d) => saveQ({ date: d ? d.format("YYYY-MM-DD") : "" })}
+                      format="YYYY-MM-DD"
+                      size="small"
+                      allowClear={false}
+                      style={{ width: 140 }}
+                      variant="borderless"
+                      suffixIcon={null}
+                    />
+                  ) : (
+                    <InlineText value={field.value} onSave={(v) => saveQ({ [field.key]: v })} placeholder={field.label} style={{ color: "#cc0000" }} />
+                  )}
+                </div>
+              ))}
+              {extraRightFields.map((field, i) => (
+                <div key={`er-${i}`} style={{ display: "flex", gap: 8, justifyContent: "flex-end", alignItems: "center" }}>
+                  <InlineText value={field.label} onSave={(v) => {
+                    const arr = [...extraRightFields]; arr[i] = { ...arr[i], label: v };
+                    saveHeader("extra_right_fields", arr as unknown as string);
+                  }} placeholder="필드명" style={{ fontWeight: 700 }} />
+                  <span>: <InlineText value={field.value} onSave={(v) => {
+                    const arr = [...extraRightFields]; arr[i] = { ...arr[i], value: v };
+                    saveHeader("extra_right_fields", arr as unknown as string);
+                  }} placeholder="값 입력" style={{ color: "#cc0000" }} /></span>
+                  <MinusCircleOutlined style={{ color: "#ff4d4f", cursor: "pointer", fontSize: 11 }}
+                    onClick={() => {
+                      const arr = extraRightFields.filter((_, j) => j !== i);
+                      saveHeader("extra_right_fields", arr as unknown as string);
+                    }} />
+                </div>
+              ))}
+              <Button type="dashed" size="small" icon={<PlusOutlined />} style={{ marginTop: 4, fontSize: 11 }}
+                onClick={() => {
+                  const arr = [...extraRightFields, { key: `custom_${Date.now()}`, label: "", value: "" }];
+                  saveHeader("extra_right_fields", arr as unknown as string);
+                }}>우측 필드 추가</Button>
+            </div>
           </div>
-          <div style={{ display: "flex", gap: 8 }}>
-            <strong style={{ minWidth: 60 }}>From</strong>
-            <span>: <InlineText value={h.from_name || h.name || ""} onSave={(v) => saveHeader("from_name", v)} placeholder="발신 회사명" /></span>
-          </div>
-          <div style={{ display: "flex", gap: 8 }}>
-            <strong style={{ minWidth: 60 }}>Attn.</strong>
-            <span>: <InlineText value={h.attn || ""} onSave={(v) => saveHeader("attn", v)} placeholder="To whom it may concern" /></span>
-          </div>
-          <div style={{ display: "flex", gap: 8 }}>
-            <strong style={{ minWidth: 60 }}>Subject</strong>
-            <span>: <InlineText value={h.subject || ""} onSave={(v) => saveHeader("subject", v)} placeholder="Offer for..." style={{ color: "#cc0000" }} /></span>
-          </div>
-        </div>
-        {/* Right: Ref / Date */}
-        <div style={{ lineHeight: 2.2, textAlign: "right" }}>
-          <div><strong>Ref No : </strong><InlineText value={quotation.ref_no} onSave={(v) => saveQ({ ref_no: v })} placeholder="AG26-OFR022701" style={{ color: "#cc0000" }} /></div>
-          <div><strong>Date : </strong><InlineText value={quotation.date} onSave={(v) => saveQ({ date: v })} placeholder="27 Feb, 2026" style={{ color: "#cc0000" }} /></div>
-        </div>
-      </div>
+        );
+      })()}
 
       {/* Dear Sir, intro */}
       <div style={{ fontSize: 12, marginBottom: 16, lineHeight: 1.8 }}>
@@ -257,22 +336,59 @@ export default function QuotationEditorPage() {
           values: { quotation_id: id, sort_order: items.length, cells: {}, cost_price: 0, cost_currency: "CNY", selling_price: 0, margin_percent: 0, margin_amount: 0, extra_costs: [] },
         }, { onSuccess: () => iq.refetch() })}>행 추가</Button>
 
-      {/* ===== Terms & Conditions ===== */}
-      <div style={{ fontSize: 11, lineHeight: 2.2, borderTop: "1px solid #e0e0e0", paddingTop: 16, marginTop: 8 }}>
-        <div style={{ fontWeight: 700, marginBottom: 4 }}>※ Terms & Conditions</div>
-        <div style={{ display: "grid", gridTemplateColumns: "100px 1fr", gap: "0 8px" }}>
-          <strong>Payment</strong>
-          <span>: <InlineText value={f.payment_terms || ""} onSave={(v) => saveFooter("payment_terms", v)} placeholder="By T/T in advance or an irrevocable, at sight L/C..." style={{ color: "#cc0000" }} /></span>
-          <strong>Packing</strong>
-          <span>: <InlineText value={f.packing || ""} onSave={(v) => saveFooter("packing", v)} placeholder="Export standard packing (Wooden box)" /></span>
-          <strong>Delivery</strong>
-          <span>: <InlineText value={f.delivery || ""} onSave={(v) => saveFooter("delivery", v)} placeholder="Within 8 weeks after order confirmation" /></span>
-          <strong>Validity</strong>
-          <span>: <InlineText value={f.validity || ""} onSave={(v) => saveFooter("validity", v)} placeholder="31 Mar, 2026" style={{ color: "#cc0000" }} /></span>
-          <strong>Remarks</strong>
-          <span>: <InlineText value={f.remarks || ""} onSave={(v) => saveFooter("remarks", v)} placeholder="Bank reference, etc." /></span>
-        </div>
-      </div>
+      {/* ===== Terms & Conditions (Dynamic) ===== */}
+      {(() => {
+        const defaultTerms = [
+          { key: "payment_terms", label: "Payment", placeholder: "By T/T in advance...", isRed: true },
+          { key: "packing", label: "Packing", placeholder: "Export standard packing (Wooden box)" },
+          { key: "delivery", label: "Delivery", placeholder: "Within 8 weeks after order confirmation" },
+          { key: "validity", label: "Validity", placeholder: "31 Mar, 2026", isRed: true },
+          { key: "remarks", label: "Remarks", placeholder: "Bank reference, etc." },
+        ];
+        const extraTerms = (f.extra_terms || []) as unknown as { key: string; label: string; value: string }[];
+
+        return (
+          <div style={{ fontSize: 11, lineHeight: 2.2, borderTop: "1px solid #e0e0e0", paddingTop: 16, marginTop: 8 }}>
+            <div style={{ fontWeight: 700, marginBottom: 4 }}>※ Terms & Conditions</div>
+            {defaultTerms.map((term) => (
+              <div key={term.key} style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <strong style={{ minWidth: 100 }}>{term.label}</strong>
+                <span>: <InlineText value={f[term.key] || ""} onSave={(v) => saveFooter(term.key, v)} placeholder={term.placeholder} style={term.isRed ? { color: "#cc0000" } : {}} /></span>
+                <Popconfirm title="이 필드를 삭제하시겠습니까?" onConfirm={() => {
+                  const newF = { ...f }; delete newF[term.key];
+                  saveQ({ footer: newF });
+                }} okText="삭제" cancelText="취소">
+                  <MinusCircleOutlined style={{ color: "#ff4d4f", cursor: "pointer", fontSize: 10, opacity: 0.4 }}
+                    onMouseEnter={(e) => (e.currentTarget.style.opacity = "1")}
+                    onMouseLeave={(e) => (e.currentTarget.style.opacity = "0.4")} />
+                </Popconfirm>
+              </div>
+            ))}
+            {extraTerms.map((term, i) => (
+              <div key={`et-${i}`} style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <InlineText value={term.label} onSave={(v) => {
+                  const arr = [...extraTerms]; arr[i] = { ...arr[i], label: v };
+                  saveFooter("extra_terms", arr as unknown as string);
+                }} placeholder="항목명" style={{ minWidth: 100, fontWeight: 700 }} />
+                <span>: <InlineText value={term.value} onSave={(v) => {
+                  const arr = [...extraTerms]; arr[i] = { ...arr[i], value: v };
+                  saveFooter("extra_terms", arr as unknown as string);
+                }} placeholder="내용 입력" /></span>
+                <MinusCircleOutlined style={{ color: "#ff4d4f", cursor: "pointer", fontSize: 10 }}
+                  onClick={() => {
+                    const arr = extraTerms.filter((_, j) => j !== i);
+                    saveFooter("extra_terms", arr as unknown as string);
+                  }} />
+              </div>
+            ))}
+            <Button type="dashed" size="small" icon={<PlusOutlined />} style={{ marginTop: 4, fontSize: 10 }}
+              onClick={() => {
+                const arr = [...extraTerms, { key: `term_${Date.now()}`, label: "", value: "" }];
+                saveFooter("extra_terms", arr as unknown as string);
+              }}>조건 항목 추가</Button>
+          </div>
+        );
+      })()}
 
       {/* ===== Signature Block ===== */}
       <div style={{ marginTop: 40, display: "flex", justifyContent: "flex-end" }}>
