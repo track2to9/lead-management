@@ -18,9 +18,7 @@ export default function QuotationEditorPage() {
   const { id } = useParams<{ id: string }>();
   const [showPDF, setShowPDF] = useState(false);
   const [editingField, setEditingField] = useState<string | null>(null);
-  const [editingCell, setEditingCell] = useState<{ itemId: string; key: string } | null>(null);
   const saveTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const inputRef = useRef<any>(null);
 
   const { query: qq } = useOne<Quotation>({ resource: "quotations", id });
   const { query: iq } = useList<QuotationItem>({
@@ -56,7 +54,7 @@ export default function QuotationEditorPage() {
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
       updateQuotation({ resource: "quotations", id, values });
-    }, 800);
+    }, 300);
   }
   function saveHeader(key: string, value: string) {
     saveQ({ company_header: { ...h, [key]: value } });
@@ -83,48 +81,13 @@ export default function QuotationEditorPage() {
     );
   }
 
-  // --- cell editing for viewer table ---
-  function onCellClick(itemId: string, key: string) {
-    setEditingCell({ itemId, key });
-    setTimeout(() => inputRef.current?.focus(), 50);
-  }
-  function onCellSave(itemId: string, key: string, value: string | number) {
-    const item = items.find((i) => i.id === itemId);
-    if (!item) return;
-    const newCells = { ...item.cells, [key]: value };
-    const hasPrice = q?.columns.some((c) => c.key === "price");
-    const hasQty = q?.columns.some((c) => c.key === "qty");
-    if (hasPrice && hasQty) {
-      newCells.amount = Math.round((Number(newCells.price) || 0) * (Number(newCells.qty) || 0) * 100) / 100;
-    }
-    updateItem({ resource: "quotation_items", id: itemId, values: { cells: newCells, selling_price: Number(newCells.amount) || 0 } },
-      { onSuccess: () => iq.refetch() });
-    setEditingCell(null);
-  }
+  // --- viewer table cell (read-only — data comes from calc tab) ---
   function renderViewerCell(item: QuotationItem, col: QuotationColumn) {
     const value = item.cells?.[col.key] ?? "";
-    const isEditing = editingCell?.itemId === item.id && editingCell?.key === col.key;
     if (col.key === "amount") return <span style={{ fontWeight: 600 }}>{formatCurrency(Number(value) || 0, quotation.currency)}</span>;
-    if (isEditing) {
-      const isNum = col.type === "number" || col.type === "currency";
-      return isNum ? (
-        <InputNumber ref={inputRef} defaultValue={Number(value) || undefined} size="small" style={{ width: "100%", border: "1px solid #f15f23" }}
-          onBlur={(e) => onCellSave(item.id, col.key, Number(e.target.value) || 0)}
-          onKeyDown={(e) => { if (e.key === "Enter") { onCellSave(item.id, col.key, Number((e.target as HTMLInputElement).value) || 0); } }} />
-      ) : (
-        <Input ref={inputRef} defaultValue={String(value)} size="small" style={{ border: "1px solid #f15f23" }}
-          onBlur={(e) => onCellSave(item.id, col.key, e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter") { onCellSave(item.id, col.key, (e.target as HTMLInputElement).value); } }} />
-      );
-    }
-    return (
-      <span onClick={() => onCellClick(item.id, col.key)}
-        style={{ cursor: "text", borderBottom: "1px dashed transparent", padding: "1px 2px" }}
-        onMouseEnter={(e) => (e.currentTarget.style.borderBottom = "1px dashed #d9d9d9")}
-        onMouseLeave={(e) => (e.currentTarget.style.borderBottom = "1px dashed transparent")}>
-        {col.type === "currency" ? formatCurrency(Number(value) || 0, quotation.currency) : String(value) || <span style={{ color: "#ccc" }}>-</span>}
-      </span>
-    );
+    if (col.type === "currency") return <span>{formatCurrency(Number(value) || 0, quotation.currency)}</span>;
+    if (col.type === "number") return <span>{Number(value) || ""}</span>;
+    return <span>{String(value) || "-"}</span>;
   }
 
   // --- cost change for calc tab ---
@@ -331,10 +294,12 @@ export default function QuotationEditorPage() {
         </tbody>
       </table>
 
-      <Button size="small" icon={<PlusOutlined />} style={{ marginBottom: 20 }}
-        onClick={() => createItem({ resource: "quotation_items",
-          values: { quotation_id: id, sort_order: items.length, cells: {}, cost_price: 0, cost_currency: "CNY", selling_price: 0, margin_percent: 0, margin_amount: 0, extra_costs: [] },
-        }, { onSuccess: () => iq.refetch() })}>행 추가</Button>
+      {/* 행 추가/편집은 "계산" 탭에서 관리 — 여기는 읽기 전용 */}
+      {items.length === 0 && (
+        <div style={{ textAlign: "center", padding: 16, color: "#999", fontSize: 11 }}>
+          "계산" 탭에서 항목을 추가하세요.
+        </div>
+      )}
 
       {/* ===== Terms & Conditions (Dynamic) ===== */}
       {(() => {
