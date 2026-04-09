@@ -1,6 +1,6 @@
 "use client";
 
-import { useList, useGetIdentity } from "@refinedev/core";
+import { useList } from "@refinedev/core";
 import { Table, Tag, Card, Statistic, Button, Empty, Space, Typography } from "antd";
 import { PlusOutlined, CheckCircleOutlined } from "@ant-design/icons";
 import Link from "next/link";
@@ -9,12 +9,9 @@ import type { Project } from "@/lib/types";
 const { Title, Text } = Typography;
 
 export default function DashboardPage() {
-  const { data: identity } = useGetIdentity<{ id: string }>();
   const { query } = useList<Project>({
     resource: "projects",
-    filters: [{ field: "user_id", operator: "eq", value: identity?.id }],
     sorters: [{ field: "created_at", order: "desc" }],
-    queryOptions: { enabled: !!identity?.id },
   });
 
   const projects = query.data?.data || [];

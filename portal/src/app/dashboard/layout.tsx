@@ -2,7 +2,7 @@
 
 import { useGetIdentity, useLogout } from "@refinedev/core";
 import { Layout, Menu, Button, Typography, Spin } from "antd";
-import { DashboardOutlined, PlusOutlined, SettingOutlined, LogoutOutlined, GlobalOutlined } from "@ant-design/icons";
+import { DashboardOutlined, PlusOutlined, SettingOutlined, LogoutOutlined, GlobalOutlined, FileTextOutlined } from "@ant-design/icons";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -37,6 +37,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           items={[
             { key: "/dashboard", icon: <DashboardOutlined />, label: <Link href="/dashboard">대시보드</Link> },
             { key: "/dashboard/new", icon: <PlusOutlined />, label: <Link href="/dashboard/new">새 분석 요청</Link> },
+            { type: "divider" },
+            { key: "/dashboard/quotations", icon: <FileTextOutlined />, label: <Link href="/dashboard/quotations">견적서</Link> },
             { type: "divider" },
             { key: "ext", icon: <GlobalOutlined />, label: <a href="https://tradevoy.devpartner.org" target="_blank">TradeVoy 홈</a> },
           ]}

@@ -1,0 +1,94 @@
+<h2>"웹사이트 분석" 탭 — 정보 표시 방식</h2>
+<p class="subtitle">폴란드어 원본 사이트를 한국 고객에게 어떻게 보여줄 것인가</p>
+
+<div class="split">
+  <div class="mockup" data-choice="a" onclick="toggleSelect(this)" style="cursor:pointer; border: 2px solid transparent;">
+    <div class="mockup-header">A: 스크린샷 중심 (비주얼 우선)</div>
+    <div class="mockup-body" style="padding: 16px; font-size: 13px;">
+      <!-- 스크린샷 크게 -->
+      <div style="background: #f0f0f0; border-radius: 8px; padding: 40px; text-align: center; margin-bottom: 16px; border: 1px solid #ddd;">
+        <div style="font-size: 11px; color: #999;">📸 홈페이지 전체 스크린샷</div>
+        <div style="font-size: 40px; margin: 8px 0;">🖥️</div>
+        <div style="font-size: 11px; color: #666;">www.interhandler.pl</div>
+      </div>
+
+      <!-- 하이라이트 영역들 -->
+      <div style="font-weight: 700; font-size: 12px; margin-bottom: 8px;">📌 핵심 발견 (3건)</div>
+
+      <div style="background: #fff7ed; border-left: 3px solid #f15f23; padding: 10px; margin-bottom: 8px; border-radius: 4px;">
+        <div style="font-size: 11px; color: #999;">원문 (폴란드어)</div>
+        <div style="font-style: italic; font-size: 12px; margin: 4px 0;">"Autoryzowany dealer maszyn JCB w Polsce"</div>
+        <div style="font-size: 11px; color: #f15f23; font-weight: 600;">→ 폴란드 JCB 공식 딜러</div>
+        <div style="font-size: 11px; color: #666; margin-top: 4px;">💡 JCB 굴삭기용 어태치먼트/브레이커 부품 수요 확인</div>
+      </div>
+
+      <div style="background: #fff7ed; border-left: 3px solid #f15f23; padding: 10px; margin-bottom: 8px; border-radius: 4px;">
+        <div style="font-size: 11px; color: #999;">원문 (폴란드어)</div>
+        <div style="font-style: italic; font-size: 12px; margin: 4px 0;">"Serwis i części zamienne do maszyn budowlanych"</div>
+        <div style="font-size: 11px; color: #f15f23; font-weight: 600;">→ 건설장비 서비스 및 부품</div>
+        <div style="font-size: 11px; color: #666; margin-top: 4px;">💡 부품 공급 파트너십 제안 가능</div>
+      </div>
+
+      <div style="background: #f0f9ff; padding: 10px; border-radius: 6px; margin-top: 12px;">
+        <div style="font-size: 11px; font-weight: 700;">🤖 AI 분석 요약</div>
+        <div style="font-size: 12px; margin-top: 4px;">JCB 굴삭기 전문 딜러로서 브레이커 부품과 어태치먼트에 대한 직접적 수요가 있음. 서비스 센터를 운영하므로 소모품 정기 공급 파트너십이 효과적.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="mockup" data-choice="b" onclick="toggleSelect(this)" style="cursor:pointer; border: 2px solid transparent;">
+    <div class="mockup-header">B: 2컬럼 (원문 + 해석 나란히)</div>
+    <div class="mockup-body" style="padding: 16px; font-size: 13px;">
+      <!-- 상단: 스크린샷 작게 + 기본 정보 -->
+      <div style="display: flex; gap: 12px; margin-bottom: 16px;">
+        <div style="width: 120px; height: 80px; background: #f0f0f0; border-radius: 6px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; border: 1px solid #ddd;">
+          <span style="font-size: 24px;">🖥️</span>
+        </div>
+        <div>
+          <div style="font-weight: 700; font-size: 13px;">www.interhandler.pl</div>
+          <div style="font-size: 11px; color: #999;">크롤링: 2026-04-08 | 언어: 폴란드어</div>
+          <div style="font-size: 11px; color: #52c41a; margin-top: 4px;">✅ 접속 가능 | 📧 이메일 발견 | 📞 전화 발견</div>
+        </div>
+      </div>
+
+      <!-- 2컬럼: 원문 vs 해석 -->
+      <div style="font-weight: 700; font-size: 12px; margin-bottom: 8px;">페이지 분석</div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+        <div style="background: #fafafa; padding: 10px; border-radius: 6px;">
+          <div style="font-size: 10px; color: #999; font-weight: 600;">원문 (Polski)</div>
+          <div style="font-size: 11px; margin-top: 4px; line-height: 1.5;">
+            "Autoryzowany dealer maszyn JCB w Polsce. Oferujemy sprzedaż, wynajem i serwis maszyn budowlanych..."
+          </div>
+        </div>
+        <div style="background: #fff7ed; padding: 10px; border-radius: 6px;">
+          <div style="font-size: 10px; color: #f15f23; font-weight: 600;">한국어 해석</div>
+          <div style="font-size: 11px; margin-top: 4px; line-height: 1.5;">
+            "폴란드 JCB 공식 딜러. 건설장비 판매, 렌탈 및 서비스를 제공합니다..."
+          </div>
+        </div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px;">
+        <div style="background: #fafafa; padding: 10px; border-radius: 6px;">
+          <div style="font-size: 10px; color: #999; font-weight: 600;">원문 (Polski)</div>
+          <div style="font-size: 11px; margin-top: 4px;">"Części zamienne i akcesoria do koparek, ładowarek..."</div>
+        </div>
+        <div style="background: #fff7ed; padding: 10px; border-radius: 6px;">
+          <div style="font-size: 10px; color: #f15f23; font-weight: 600;">한국어 해석</div>
+          <div style="font-size: 11px; margin-top: 4px;">"굴삭기, 로더용 부품 및 악세서리..."</div>
+        </div>
+      </div>
+
+      <!-- 하단: 발견 사항 -->
+      <div style="background: #f0f9ff; padding: 10px; border-radius: 6px; margin-top: 12px;">
+        <div style="font-size: 11px; font-weight: 700;">🏷️ 발견된 제품/서비스</div>
+        <div style="margin-top: 4px; display: flex; gap: 4px; flex-wrap: wrap;">
+          <span style="background: #e6f7ff; padding: 2px 8px; border-radius: 4px; font-size: 10px;">JCB 굴삭기</span>
+          <span style="background: #e6f7ff; padding: 2px 8px; border-radius: 4px; font-size: 10px;">부품 서비스</span>
+          <span style="background: #e6f7ff; padding: 2px 8px; border-radius: 4px; font-size: 10px;">렌탈</span>
+          <span style="background: #fff2e8; padding: 2px 8px; border-radius: 4px; font-size: 10px; color: #f15f23;">브레이커 부품 ★</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
