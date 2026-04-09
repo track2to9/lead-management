@@ -18,7 +18,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <Layout style={{ minHeight: "100vh" }}>
-      <Sider width={240} style={{ background: "#fff", borderRight: "1px solid #f0f0f0" }} breakpoint="lg" collapsedWidth={0}>
+      <Sider width={200} collapsible style={{ background: "#fff", borderRight: "1px solid #f0f0f0" }} breakpoint="lg" collapsedWidth={60}>
         <div style={{ padding: "16px 20px", borderBottom: "1px solid #f0f0f0" }}>
           <Link href="/dashboard" style={{ fontWeight: 900, fontSize: 18, color: "#000" }}>
             Trade<span style={{ color: "#f15f23" }}>Voy</span>
@@ -59,7 +59,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <Button type="text" onClick={() => logout()} style={{ color: "#999", fontSize: 12 }}>로그아웃</Button>
         </Header>
         <Content style={{ padding: 24, background: "#fafafa", overflow: "auto" }}>
-          <div style={{ maxWidth: 1100, margin: "0 auto" }}>
+          <div style={{ maxWidth: 1400, margin: "0 auto" }}>
             {children}
           </div>
         </Content>
