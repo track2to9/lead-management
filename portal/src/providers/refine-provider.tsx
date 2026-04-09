@@ -4,7 +4,7 @@ import { Suspense } from "react";
 import { Refine } from "@refinedev/core";
 import routerProvider from "@refinedev/nextjs-router";
 import { dataProvider } from "@refinedev/supabase";
-import { RefineThemes, useNotificationProvider } from "@refinedev/antd";
+import { RefineThemes } from "@refinedev/antd";
 import { App as AntdApp, ConfigProvider, Spin } from "antd";
 import koKR from "antd/locale/ko_KR";
 import { supabaseClient } from "@/lib/supabase-client";
@@ -28,7 +28,10 @@ export function RefineProvider({ children }: { children: React.ReactNode }) {
           dataProvider={dataProvider(supabaseClient)}
           authProvider={authProvider}
           routerProvider={routerProvider}
-          notificationProvider={useNotificationProvider}
+          notificationProvider={{
+            open: () => {},
+            close: () => {},
+          }}
           resources={[
             {
               name: "projects",
