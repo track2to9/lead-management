@@ -9,6 +9,7 @@ import { useState, useRef } from "react";
 import type { Quotation, QuotationItem, QuotationColumn, ExtraCost } from "@/lib/types";
 import { calcForward, calcReverse, calcSummary, formatCurrency, convertCurrency } from "@/lib/quotation-calc";
 import QuotationPDF from "@/components/quotation/QuotationPDF";
+import ImageUploader from "@/components/quotation/ImageUploader";
 
 const { Title, Text } = Typography;
 
@@ -160,17 +161,13 @@ export default function QuotationEditorPage() {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
         {/* Left: Logo */}
         <div style={{ flex: 1 }}>
-          {h.logo_url ? (
-            <img src={h.logo_url} alt="Logo" style={{ maxHeight: 60, maxWidth: 200 }} />
-          ) : (
-            <div style={{ border: "1px dashed #d9d9d9", padding: "8px 16px", display: "inline-block", cursor: "pointer", color: "#999", fontSize: 11 }}
-              onClick={() => {
-                const url = prompt("로고 이미지 URL을 입력하세요:");
-                if (url) saveHeader("logo_url", url);
-              }}>
-              🖼 로고 이미지 추가
-            </div>
-          )}
+          <ImageUploader
+            value={h.logo_url}
+            onChange={(url) => saveHeader("logo_url", url || "")}
+            folder="logos"
+            placeholder="로고 이미지 업로드"
+            maxHeight={60}
+          />
         </div>
         {/* Right: Title */}
         <div style={{ textAlign: "right" }}>
@@ -285,15 +282,15 @@ export default function QuotationEditorPage() {
             <InlineText value={f.sig_company || h.from_name || h.name || ""} onSave={(v) => saveFooter("sig_company", v)} placeholder="COMPANY NAME" style={{ fontSize: 14, fontWeight: 900, letterSpacing: 2 }} />
           </div>
           {/* Signature image */}
-          {f.sig_image_url ? (
-            <img src={f.sig_image_url} alt="Signature" style={{ maxHeight: 50, margin: "8px auto", display: "block", cursor: "pointer" }}
-              onClick={() => { const url = prompt("서명 이미지 URL:", f.sig_image_url); if (url !== null) saveFooter("sig_image_url", url); }} />
-          ) : (
-            <div style={{ border: "1px dashed #d9d9d9", padding: "12px 24px", margin: "8px auto", cursor: "pointer", color: "#999", fontSize: 10 }}
-              onClick={() => { const url = prompt("서명 이미지 URL을 입력하세요:"); if (url) saveFooter("sig_image_url", url); }}>
-              🖊 서명 이미지 추가
-            </div>
-          )}
+          <div style={{ margin: "8px auto", display: "flex", justifyContent: "center" }}>
+            <ImageUploader
+              value={f.sig_image_url}
+              onChange={(url) => saveFooter("sig_image_url", url || "")}
+              folder="signatures"
+              placeholder="서명 이미지 업로드"
+              maxHeight={50}
+            />
+          </div>
           <div style={{ borderTop: "1px solid #000", paddingTop: 4, marginTop: 4 }}>
             <div style={{ fontSize: 11, fontWeight: 700 }}>
               <InlineText value={f.sig_name || ""} onSave={(v) => saveFooter("sig_name", v)} placeholder="KIM JOO SIK" style={{ fontWeight: 700 }} />

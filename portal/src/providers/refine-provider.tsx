@@ -55,6 +55,7 @@ export function RefineProvider({ children }: { children: React.ReactNode }) {
               meta: { label: "전시회" },
             },
             { name: "evidence" },
+            { name: "company_defaults" },
             {
               name: "quotation_templates",
               meta: { label: "견적서 템플릿" },

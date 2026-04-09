@@ -8,6 +8,22 @@ import type { QuotationTemplate } from "@/lib/types";
 
 const { Title, Text } = Typography;
 
+interface CompanyDefaults {
+  logo_url?: string;
+  company_name?: string;
+  address?: string;
+  tel?: string;
+  website?: string;
+  from_name?: string;
+  sig_company?: string;
+  sig_name?: string;
+  sig_title?: string;
+  sig_image_url?: string;
+  greeting?: string;
+  intro?: string;
+  default_footer?: Record<string, string>;
+}
+
 export default function NewQuotationPage() {
   const router = useRouter();
   const { data: identity } = useGetIdentity<{ id: string }>();
@@ -15,15 +31,53 @@ export default function NewQuotationPage() {
     resource: "quotation_templates",
     pagination: { pageSize: 50 },
   });
+  // 회사 기본 설정 로드
+  const { query: defaultsQuery } = useList<CompanyDefaults>({
+    resource: "company_defaults",
+    filters: [{ field: "user_id", operator: "eq", value: identity?.id }],
+    pagination: { pageSize: 1 },
+    queryOptions: { enabled: !!identity?.id },
+  });
   const createHook = useCreate();
   const createQuotation = createHook.mutate;
   const creating = false;
 
   const templates = query.data?.data || [];
+  const defaults = defaultsQuery.data?.data?.[0];
 
   function handleSelect(template: QuotationTemplate) {
     const now = new Date();
     const refNo = `QT${now.getFullYear().toString().slice(2)}-${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}${String(now.getHours()).padStart(2, "0")}${String(now.getMinutes()).padStart(2, "0")}`;
+
+    // 회사 기본값이 있으면 사용, 없으면 빈 값
+    const companyHeader = defaults ? {
+      logo_url: defaults.logo_url || "",
+      name: defaults.company_name || "",
+      address: defaults.address || "",
+      tel: defaults.tel || "",
+      web: defaults.website || "",
+      from_name: defaults.from_name || defaults.company_name || "",
+      doc_title: "Quotation",
+      attn: "To whom it may concern",
+      subject: "",
+      greeting: defaults.greeting || "Dear Sir,",
+      intro: defaults.intro || "We are pleased to offer the following goods as per terms and conditions set forth hereunder.",
+    } : {
+      name: "", address: "", tel: "", web: "",
+      doc_title: "Quotation",
+      greeting: "Dear Sir,",
+      intro: "We are pleased to offer the following goods as per terms and conditions set forth hereunder.",
+    };
+
+    // 푸터: 템플릿 기본값 + 회사 서명 정보
+    const footer = {
+      ...(template.footer_defaults || {}),
+      ...(defaults?.default_footer || {}),
+      sig_company: defaults?.sig_company || defaults?.from_name || "",
+      sig_name: defaults?.sig_name || "",
+      sig_title: defaults?.sig_title || "",
+      sig_image_url: defaults?.sig_image_url || "",
+    };
 
     createQuotation(
       {
@@ -38,13 +92,8 @@ export default function NewQuotationPage() {
           currency: "USD",
           exchange_rates: { CNY: 7.2, KRW: 1380 },
           margin_mode: "forward",
-          footer: template.footer_defaults || {},
-          company_header: {
-            name: "SPS ENG CO., LTD",
-            address: "서울특별시 송파구",
-            tel: "",
-            web: "https://spseng.com",
-          },
+          footer,
+          company_header: companyHeader,
           global_costs: [],
         },
       },
