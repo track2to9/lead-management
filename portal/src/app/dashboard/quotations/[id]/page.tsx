@@ -20,6 +20,8 @@ export default function QuotationEditorPage() {
   const [showPDF, setShowPDF] = useState(false);
   const [editingField, setEditingField] = useState<string | null>(null);
   const [editingColIdx, setEditingColIdx] = useState<number | null>(null);
+  const [dragCol, setDragCol] = useState<number | null>(null);
+  const [dragOverCol, setDragOverCol] = useState<number | null>(null);
   const saveTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const { query: qq } = useOne<Quotation>({ resource: "quotations", id });
@@ -439,38 +441,78 @@ export default function QuotationEditorPage() {
             <thead>
               <tr>
                 <th style={{ padding: "6px", background: "#f0f7ff", width: 36, fontSize: 10 }}>No</th>
-                {quotation.columns.map((col, ci) => (
-                  <th key={col.key} style={{ padding: "4px 2px", background: "#f0f7ff", minWidth: col.width || 80, textAlign: "center", fontSize: 10 }}>
-                    {/* 칼럼 이동 화살표 (상단) */}
-                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2, padding: "0 2px" }}>
-                      <span style={{ cursor: ci > 0 ? "pointer" : "default", color: ci > 0 ? "#bbb" : "#eee", fontSize: 8, userSelect: "none" }}
-                        onClick={() => { if (ci > 0) { const arr = [...quotation.columns]; [arr[ci], arr[ci-1]] = [arr[ci-1], arr[ci]]; updateQuotation({ resource: "quotations", id, values: { columns: arr } }, { onSuccess: () => qq.refetch() }); } }}>◀</span>
-                      <span style={{ cursor: "pointer", color: "#ff4d4f", fontSize: 8, userSelect: "none" }} title="삭제"
-                        onClick={() => { if (confirm(`"${col.label}" 삭제?`)) { updateQuotation({ resource: "quotations", id, values: { columns: quotation.columns.filter((_, i) => i !== ci) } }, { onSuccess: () => qq.refetch() }); } }}>✕</span>
-                      <span style={{ cursor: ci < quotation.columns.length - 1 ? "pointer" : "default", color: ci < quotation.columns.length - 1 ? "#bbb" : "#eee", fontSize: 8, userSelect: "none" }}
-                        onClick={() => { if (ci < quotation.columns.length - 1) { const arr = [...quotation.columns]; [arr[ci], arr[ci+1]] = [arr[ci+1], arr[ci]]; updateQuotation({ resource: "quotations", id, values: { columns: arr } }, { onSuccess: () => qq.refetch() }); } }}>▶</span>
-                    </div>
-                    {/* 칼럼 이름 (클릭하면 편집) */}
-                    {editingColIdx === ci ? (
-                      <Input size="small" autoFocus defaultValue={col.label}
-                        style={{ width: "100%", textAlign: "center", fontSize: 11, fontWeight: 600 }}
-                        onBlur={(e) => {
-                          const arr = [...quotation.columns]; arr[ci] = { ...arr[ci], label: e.target.value || col.label };
+                {quotation.columns.map((col, ci) => {
+                  const isDragging = dragCol === ci;
+                  const isOver = dragOverCol === ci && dragCol !== ci;
+                  const dropLeft = isOver && dragCol !== null && dragCol > ci;
+                  const dropRight = isOver && dragCol !== null && dragCol < ci;
+
+                  return (
+                    <th key={col.key}
+                      draggable={editingColIdx !== ci}
+                      onDragStart={(e) => {
+                        setDragCol(ci);
+                        e.dataTransfer.effectAllowed = "move";
+                        // 드래그 이미지를 현재 th로 설정
+                        const el = e.currentTarget;
+                        e.dataTransfer.setDragImage(el, el.offsetWidth / 2, el.offsetHeight / 2);
+                      }}
+                      onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; setDragOverCol(ci); }}
+                      onDragLeave={() => { if (dragOverCol === ci) setDragOverCol(null); }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        if (dragCol !== null && dragCol !== ci) {
+                          const arr = [...quotation.columns];
+                          const [moved] = arr.splice(dragCol, 1);
+                          arr.splice(ci, 0, moved);
                           updateQuotation({ resource: "quotations", id, values: { columns: arr } }, { onSuccess: () => qq.refetch() });
-                          setEditingColIdx(null);
-                        }}
-                        onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") setEditingColIdx(null); }}
-                      />
-                    ) : (
-                      <span style={{ cursor: "text", borderBottom: "1px dashed #bbb", padding: "1px 4px", fontWeight: 600 }}
-                        onClick={() => setEditingColIdx(ci)} title="클릭하여 이름 변경">
-                        {col.label}
-                      </span>
-                    )}
-                  </th>
-                ))}
+                        }
+                        setDragCol(null); setDragOverCol(null);
+                      }}
+                      onDragEnd={() => { setDragCol(null); setDragOverCol(null); }}
+                      style={{
+                        padding: "4px 2px", background: isDragging ? "#dbeafe" : "#f0f7ff",
+                        minWidth: col.width || 80, textAlign: "center", fontSize: 10,
+                        opacity: isDragging ? 0.5 : 1,
+                        cursor: editingColIdx === ci ? "text" : "grab",
+                        transition: "all 0.15s ease",
+                        borderLeft: dropLeft ? "3px solid #1890ff" : "none",
+                        borderRight: dropRight ? "3px solid #1890ff" : "none",
+                        position: "relative",
+                      }}
+                    >
+                      {/* 삭제 버튼 (우측 상단) */}
+                      <div style={{ position: "absolute", top: 1, right: 3 }}>
+                        <span style={{ cursor: "pointer", color: "#ff4d4f", fontSize: 8, opacity: 0.4, transition: "opacity 0.15s" }}
+                          title="삭제"
+                          onMouseEnter={(e) => (e.currentTarget.style.opacity = "1")}
+                          onMouseLeave={(e) => (e.currentTarget.style.opacity = "0.4")}
+                          onClick={(e) => { e.stopPropagation(); if (confirm(`"${col.label}" 삭제?`)) { updateQuotation({ resource: "quotations", id, values: { columns: quotation.columns.filter((_, i) => i !== ci) } }, { onSuccess: () => qq.refetch() }); } }}>✕</span>
+                      </div>
+                      {/* 드래그 핸들 아이콘 */}
+                      <div style={{ fontSize: 8, color: "#ccc", marginBottom: 1, cursor: "grab" }}>⠿</div>
+                      {/* 칼럼 이름 (클릭하면 편집) */}
+                      {editingColIdx === ci ? (
+                        <Input size="small" autoFocus defaultValue={col.label}
+                          style={{ width: "100%", textAlign: "center", fontSize: 11, fontWeight: 600 }}
+                          onBlur={(e) => {
+                            const arr = [...quotation.columns]; arr[ci] = { ...arr[ci], label: e.target.value || col.label };
+                            updateQuotation({ resource: "quotations", id, values: { columns: arr } }, { onSuccess: () => qq.refetch() });
+                            setEditingColIdx(null);
+                          }}
+                          onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") setEditingColIdx(null); }}
+                        />
+                      ) : (
+                        <span style={{ cursor: "text", borderBottom: "1px dashed #bbb", padding: "1px 4px", fontWeight: 600 }}
+                          onClick={() => setEditingColIdx(ci)} title="클릭하여 이름 변경">
+                          {col.label}
+                        </span>
+                      )}
+                    </th>
+                  );
+                })}
                 {/* 칼럼 추가 버튼 */}
-                <th style={{ padding: "4px", background: "#f0f7ff", width: 32, verticalAlign: "bottom" }}>
+                <th style={{ padding: "4px", background: "#f0f7ff", width: 32, verticalAlign: "middle" }}>
                   <Button type="text" size="small" icon={<PlusOutlined />}
                     style={{ color: "#1890ff", fontSize: 12 }} title="칼럼 추가"
                     onClick={() => {
