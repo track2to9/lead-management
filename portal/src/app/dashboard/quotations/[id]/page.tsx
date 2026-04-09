@@ -19,6 +19,7 @@ export default function QuotationEditorPage() {
   const { id } = useParams<{ id: string }>();
   const [showPDF, setShowPDF] = useState(false);
   const [editingField, setEditingField] = useState<string | null>(null);
+  const [editingColIdx, setEditingColIdx] = useState<number | null>(null);
   const saveTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const { query: qq } = useOne<Quotation>({ resource: "quotations", id });
@@ -439,27 +440,46 @@ export default function QuotationEditorPage() {
               <tr>
                 <th style={{ padding: "6px", background: "#f0f7ff", width: 36, fontSize: 10 }}>No</th>
                 {quotation.columns.map((col, ci) => (
-                  <th key={col.key} style={{ padding: "4px 6px", background: "#f0f7ff", minWidth: col.width || 80, textAlign: "center", fontSize: 10, position: "relative" }}>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 2 }}>
-                      {ci > 0 && <span style={{ cursor: "pointer", color: "#bbb", fontSize: 9 }} title="왼쪽으로"
-                        onClick={() => { const arr = [...quotation.columns]; [arr[ci], arr[ci-1]] = [arr[ci-1], arr[ci]]; updateQuotation({ resource: "quotations", id, values: { columns: arr } }, { onSuccess: () => qq.refetch() }); }}>◀</span>}
-                      <span>{col.label}</span>
-                      {ci < quotation.columns.length - 1 && <span style={{ cursor: "pointer", color: "#bbb", fontSize: 9 }} title="오른쪽으로"
-                        onClick={() => { const arr = [...quotation.columns]; [arr[ci], arr[ci+1]] = [arr[ci+1], arr[ci]]; updateQuotation({ resource: "quotations", id, values: { columns: arr } }, { onSuccess: () => qq.refetch() }); }}>▶</span>}
-                      <span style={{ cursor: "pointer", color: "#ff4d4f", fontSize: 9, marginLeft: 2 }} title="칼럼 삭제"
-                        onClick={() => { if (confirm(`"${col.label}" 칼럼을 삭제하시겠습니까?`)) { updateQuotation({ resource: "quotations", id, values: { columns: quotation.columns.filter((_, i) => i !== ci) } }, { onSuccess: () => qq.refetch() }); } }}>✕</span>
+                  <th key={col.key} style={{ padding: "4px 2px", background: "#f0f7ff", minWidth: col.width || 80, textAlign: "center", fontSize: 10 }}>
+                    {/* 칼럼 이동 화살표 (상단) */}
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2, padding: "0 2px" }}>
+                      <span style={{ cursor: ci > 0 ? "pointer" : "default", color: ci > 0 ? "#bbb" : "#eee", fontSize: 8, userSelect: "none" }}
+                        onClick={() => { if (ci > 0) { const arr = [...quotation.columns]; [arr[ci], arr[ci-1]] = [arr[ci-1], arr[ci]]; updateQuotation({ resource: "quotations", id, values: { columns: arr } }, { onSuccess: () => qq.refetch() }); } }}>◀</span>
+                      <span style={{ cursor: "pointer", color: "#ff4d4f", fontSize: 8, userSelect: "none" }} title="삭제"
+                        onClick={() => { if (confirm(`"${col.label}" 삭제?`)) { updateQuotation({ resource: "quotations", id, values: { columns: quotation.columns.filter((_, i) => i !== ci) } }, { onSuccess: () => qq.refetch() }); } }}>✕</span>
+                      <span style={{ cursor: ci < quotation.columns.length - 1 ? "pointer" : "default", color: ci < quotation.columns.length - 1 ? "#bbb" : "#eee", fontSize: 8, userSelect: "none" }}
+                        onClick={() => { if (ci < quotation.columns.length - 1) { const arr = [...quotation.columns]; [arr[ci], arr[ci+1]] = [arr[ci+1], arr[ci]]; updateQuotation({ resource: "quotations", id, values: { columns: arr } }, { onSuccess: () => qq.refetch() }); } }}>▶</span>
                     </div>
+                    {/* 칼럼 이름 (클릭하면 편집) */}
+                    {editingColIdx === ci ? (
+                      <Input size="small" autoFocus defaultValue={col.label}
+                        style={{ width: "100%", textAlign: "center", fontSize: 11, fontWeight: 600 }}
+                        onBlur={(e) => {
+                          const arr = [...quotation.columns]; arr[ci] = { ...arr[ci], label: e.target.value || col.label };
+                          updateQuotation({ resource: "quotations", id, values: { columns: arr } }, { onSuccess: () => qq.refetch() });
+                          setEditingColIdx(null);
+                        }}
+                        onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") setEditingColIdx(null); }}
+                      />
+                    ) : (
+                      <span style={{ cursor: "text", borderBottom: "1px dashed #bbb", padding: "1px 4px", fontWeight: 600 }}
+                        onClick={() => setEditingColIdx(ci)} title="클릭하여 이름 변경">
+                        {col.label}
+                      </span>
+                    )}
                   </th>
                 ))}
-                <th style={{ padding: "4px", background: "#f0f7ff", width: 28 }}>
-                  <span style={{ cursor: "pointer", color: "#1890ff", fontSize: 14 }} title="칼럼 추가"
+                {/* 칼럼 추가 버튼 */}
+                <th style={{ padding: "4px", background: "#f0f7ff", width: 32, verticalAlign: "bottom" }}>
+                  <Button type="text" size="small" icon={<PlusOutlined />}
+                    style={{ color: "#1890ff", fontSize: 12 }} title="칼럼 추가"
                     onClick={() => {
-                      const label = prompt("칼럼 이름:");
-                      if (!label) return;
-                      const type = prompt("타입 (text / number / currency):", "text") as "text"|"number"|"currency" || "text";
-                      const key = label.toLowerCase().replace(/[^a-z0-9]/g, "_") + "_" + Date.now().toString(36);
-                      updateQuotation({ resource: "quotations", id, values: { columns: [...quotation.columns, { key, label, type, width: 100 }] } }, { onSuccess: () => qq.refetch() });
-                    }}>+</span>
+                      const key = "col_" + Date.now().toString(36);
+                      const newCols = [...quotation.columns, { key, label: "새 칼럼", type: "text" as const, width: 100 }];
+                      updateQuotation({ resource: "quotations", id, values: { columns: newCols } }, {
+                        onSuccess: () => { qq.refetch(); setEditingColIdx(newCols.length - 1); },
+                      });
+                    }} />
                 </th>
               </tr>
             </thead>
