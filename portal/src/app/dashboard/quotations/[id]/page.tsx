@@ -2,7 +2,7 @@
 
 import { useOne, useList, useUpdate, useCreate, useDelete } from "@refinedev/core";
 import { useParams } from "next/navigation";
-import { Card, Input, InputNumber, Select, Button, Space, Typography, Breadcrumb, Tag, Spin, Switch } from "antd";
+import { Card, Input, InputNumber, Select, Button, Space, Typography, Breadcrumb, Tag, Spin } from "antd";
 import { HomeOutlined, EyeOutlined, CheckCircleOutlined, FilePdfOutlined, EyeInvisibleOutlined, PlusOutlined, DeleteOutlined, PlusCircleOutlined } from "@ant-design/icons";
 import Link from "next/link";
 import { useState, useRef } from "react";
@@ -87,26 +87,28 @@ export default function QuotationEditorPage() {
     } else if (e.key === "Escape") setEditingCell(null);
   }
 
-  // --- Cost change ---
+  // --- Cost change (bidirectional: margin→price OR price→margin depending on which field was edited) ---
   function onCostChange(itemId: string, field: string, value: number | string) {
     const item = items.find((i) => i.id === itemId);
     if (!item) return;
     const updates: Record<string, unknown> = { [field]: value };
     const cp = field === "cost_price" ? Number(value) : (item.cost_price || 0);
     const cc = field === "cost_currency" ? String(value) : item.cost_currency;
-    const mp = field === "margin_percent" ? Number(value) : (item.margin_percent || 0);
-    const sp = field === "selling_price" ? Number(value) : (item.selling_price || 0);
 
-    if (quotation.margin_mode === "forward") {
+    if (field === "selling_price") {
+      // 판매가 수정 → 마진 역산
+      const sp = Number(value);
+      const r = calcReverse(sp, cp, cc, item.extra_costs || [], quotation.exchange_rates);
+      updates.margin_percent = r.marginPercent;
+      updates.margin_amount = r.marginAmount;
+    } else {
+      // 원가/마진%/통화 수정 → 판매가 재계산
+      const mp = field === "margin_percent" ? Number(value) : (item.margin_percent || 0);
       const r = calcForward(cp, cc, mp, item.extra_costs || [], quotation.exchange_rates);
       updates.selling_price = r.sellingPrice;
       updates.margin_amount = r.marginAmount;
       const qty = Number(item.cells?.qty) || 1;
       updates.cells = { ...item.cells, price: r.sellingPrice, amount: Math.round(r.sellingPrice * qty * 100) / 100 };
-    } else {
-      const r = calcReverse(sp, cp, cc, item.extra_costs || [], quotation.exchange_rates);
-      updates.margin_percent = r.marginPercent;
-      updates.margin_amount = r.marginAmount;
     }
     updateItem({ resource: "quotation_items", id: itemId, values: updates }, { onSuccess: () => iq.refetch() });
   }
@@ -210,15 +212,6 @@ export default function QuotationEditorPage() {
               <InputNumber size="small" value={rates.KRW || 1380} style={{ width: 80 }}
                 onChange={(v) => { const r = { ...rates, KRW: v || 1380 }; updateQuotation({ resource: "quotations", id, values: { exchange_rates: r } }, { onSuccess: () => qq.refetch() }); }} />
             </div>
-            <div>
-              <Text type="secondary" style={{ fontSize: 10, display: "block" }}>모드</Text>
-              <Space size={2}>
-                <Text style={{ fontSize: 10 }}>마진→가격</Text>
-                <Switch size="small" checked={quotation.margin_mode === "reverse"}
-                  onChange={(v) => updateQuotation({ resource: "quotations", id, values: { margin_mode: v ? "reverse" : "forward" } }, { onSuccess: () => qq.refetch() })} />
-                <Text style={{ fontSize: 10 }}>가격→마진</Text>
-              </Space>
-            </div>
           </>
         )}
       </div>
@@ -248,17 +241,8 @@ export default function QuotationEditorPage() {
                   <th style={{ padding: "8px 6px", background: "#fff7ed", borderBottom: "2px solid #f15f23", minWidth: 80, textAlign: "right" }}>원가</th>
                   <th style={{ padding: "8px 6px", background: "#fff7ed", borderBottom: "2px solid #f15f23", width: 55 }}>통화</th>
                   <th style={{ padding: "8px 6px", background: "#fff7ed", borderBottom: "2px solid #f15f23", minWidth: 80, textAlign: "right" }}>원가(USD)</th>
-                  {quotation.margin_mode === "forward" ? (
-                    <>
-                      <th style={{ padding: "8px 6px", background: "#fff7ed", borderBottom: "2px solid #f15f23", minWidth: 60, textAlign: "right" }}>마진%</th>
-                      <th style={{ padding: "8px 6px", background: "#fff7ed", borderBottom: "2px solid #f15f23", minWidth: 80, textAlign: "right" }}>판매가</th>
-                    </>
-                  ) : (
-                    <>
-                      <th style={{ padding: "8px 6px", background: "#fff7ed", borderBottom: "2px solid #f15f23", minWidth: 80, textAlign: "right" }}>판매가</th>
-                      <th style={{ padding: "8px 6px", background: "#fff7ed", borderBottom: "2px solid #f15f23", minWidth: 60, textAlign: "right" }}>마진%</th>
-                    </>
-                  )}
+                  <th style={{ padding: "8px 6px", background: "#fff7ed", borderBottom: "2px solid #f15f23", minWidth: 60, textAlign: "right" }}>마진%</th>
+                  <th style={{ padding: "8px 6px", background: "#fff7ed", borderBottom: "2px solid #f15f23", minWidth: 80, textAlign: "right" }}>판매가</th>
                   <th style={{ padding: "8px 6px", background: "#fff7ed", borderBottom: "2px solid #f15f23", minWidth: 80, textAlign: "right" }}>마진액</th>
                 </>
               )}
@@ -292,28 +276,14 @@ export default function QuotationEditorPage() {
                       <td style={{ padding: "4px 6px", background: "#fffbf5", textAlign: "right", color: "#999", fontSize: 11 }}>
                         {formatCurrency(costUSD, "USD")}
                       </td>
-                      {quotation.margin_mode === "forward" ? (
-                        <>
-                          <td style={{ padding: "4px 4px", background: "#fffbf5", textAlign: "right" }}>
-                            <InputNumber size="small" value={item.margin_percent || undefined} style={{ width: 55 }}
-                              onChange={(v) => onCostChange(item.id, "margin_percent", v || 0)} />
-                          </td>
-                          <td style={{ padding: "4px 6px", background: "#fffbf5", textAlign: "right", fontWeight: 600 }}>
-                            {formatCurrency(item.selling_price || 0, quotation.currency)}
-                          </td>
-                        </>
-                      ) : (
-                        <>
-                          <td style={{ padding: "4px 4px", background: "#fffbf5", textAlign: "right" }}>
-                            <InputNumber size="small" value={item.selling_price || undefined} style={{ width: 75 }}
-                              onChange={(v) => onCostChange(item.id, "selling_price", v || 0)} />
-                          </td>
-                          <td style={{ padding: "4px 6px", background: "#fffbf5", textAlign: "right",
-                            color: (item.margin_percent || 0) >= 0 ? "#52c41a" : "#ff4d4f" }}>
-                            {(item.margin_percent || 0).toFixed(1)}%
-                          </td>
-                        </>
-                      )}
+                      <td style={{ padding: "4px 4px", background: "#fffbf5", textAlign: "right" }}>
+                        <InputNumber size="small" value={item.margin_percent || undefined} style={{ width: 55 }}
+                          onChange={(v) => onCostChange(item.id, "margin_percent", v || 0)} />
+                      </td>
+                      <td style={{ padding: "4px 4px", background: "#fffbf5", textAlign: "right" }}>
+                        <InputNumber size="small" value={item.selling_price || undefined} style={{ width: 75 }}
+                          onChange={(v) => onCostChange(item.id, "selling_price", v || 0)} />
+                      </td>
                       <td style={{ padding: "4px 6px", background: "#fffbf5", textAlign: "right", fontWeight: 600,
                         color: (item.margin_amount || 0) >= 0 ? "#52c41a" : "#ff4d4f" }}>
                         {formatCurrency(item.margin_amount || 0, quotation.currency)}
