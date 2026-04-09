@@ -11,7 +11,7 @@ import type { Quotation, QuotationItem, QuotationColumn, ExtraCost } from "@/lib
 import { calcForward, calcReverse, calcSummary, formatCurrency, convertCurrency } from "@/lib/quotation-calc";
 import QuotationPDF from "@/components/quotation/QuotationPDF";
 import ImageUploader from "@/components/quotation/ImageUploader";
-import ColumnManager from "@/components/quotation/ColumnManager";
+// ColumnManager removed — column controls now inline in table header
 
 const { Title, Text } = Typography;
 
@@ -426,179 +426,189 @@ export default function QuotationEditorPage() {
         </div>
       </div>
 
-      {/* Column Manager */}
-      <div style={{ marginBottom: 12, padding: "8px 12px", background: "#f9f9f9", borderRadius: 8, display: "flex", alignItems: "center", gap: 8 }}>
-        <Text strong style={{ fontSize: 11, color: "#999", flexShrink: 0 }}>좌측 칼럼:</Text>
-        <ColumnManager
-          columns={quotation.columns}
-          onChange={(cols) => {
-            updateQuotation({ resource: "quotations", id, values: { columns: cols } }, { onSuccess: () => qq.refetch() });
-          }}
-        />
-      </div>
+      {/* ===== 좌우 분리 레이아웃 ===== */}
+      <div style={{ display: "flex", gap: 0, overflowX: "auto" }}>
 
-      {/* Unified calc table */}
-      <div style={{ overflowX: "auto", border: "1px solid #e0e0e0", borderRadius: 8, background: "#fff" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-          <thead>
-            <tr>
-              <th style={{ padding: "8px 6px", background: "#e8f4fd", borderBottom: "2px solid #1890ff", width: 36, color: "#1890ff" }}>No</th>
-              {quotation.columns.map((col) => (
-                <th key={col.key} style={{ padding: "8px 6px", background: "#e8f4fd", borderBottom: "2px solid #1890ff", minWidth: col.width || 100, textAlign: col.type === "currency" || col.type === "number" ? "center" : "left", color: "#1890ff", fontSize: 11 }}>
-                  {col.label}
+        {/* ===== 좌측: 고객용 테이블 ===== */}
+        <div style={{ border: "2px solid #1890ff", borderRadius: "8px 0 0 8px", background: "#fff", flex: "1 1 auto", minWidth: 400 }}>
+          <div style={{ background: "#e8f4fd", padding: "6px 12px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #1890ff" }}>
+            <Text strong style={{ color: "#1890ff", fontSize: 11 }}>📋 고객 전달용</Text>
+          </div>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+            <thead>
+              <tr>
+                <th style={{ padding: "6px", background: "#f0f7ff", width: 36, fontSize: 10 }}>No</th>
+                {quotation.columns.map((col, ci) => (
+                  <th key={col.key} style={{ padding: "4px 6px", background: "#f0f7ff", minWidth: col.width || 80, textAlign: "center", fontSize: 10, position: "relative" }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 2 }}>
+                      {ci > 0 && <span style={{ cursor: "pointer", color: "#bbb", fontSize: 9 }} title="왼쪽으로"
+                        onClick={() => { const arr = [...quotation.columns]; [arr[ci], arr[ci-1]] = [arr[ci-1], arr[ci]]; updateQuotation({ resource: "quotations", id, values: { columns: arr } }, { onSuccess: () => qq.refetch() }); }}>◀</span>}
+                      <span>{col.label}</span>
+                      {ci < quotation.columns.length - 1 && <span style={{ cursor: "pointer", color: "#bbb", fontSize: 9 }} title="오른쪽으로"
+                        onClick={() => { const arr = [...quotation.columns]; [arr[ci], arr[ci+1]] = [arr[ci+1], arr[ci]]; updateQuotation({ resource: "quotations", id, values: { columns: arr } }, { onSuccess: () => qq.refetch() }); }}>▶</span>}
+                      <span style={{ cursor: "pointer", color: "#ff4d4f", fontSize: 9, marginLeft: 2 }} title="칼럼 삭제"
+                        onClick={() => { if (confirm(`"${col.label}" 칼럼을 삭제하시겠습니까?`)) { updateQuotation({ resource: "quotations", id, values: { columns: quotation.columns.filter((_, i) => i !== ci) } }, { onSuccess: () => qq.refetch() }); } }}>✕</span>
+                    </div>
+                  </th>
+                ))}
+                <th style={{ padding: "4px", background: "#f0f7ff", width: 28 }}>
+                  <span style={{ cursor: "pointer", color: "#1890ff", fontSize: 14 }} title="칼럼 추가"
+                    onClick={() => {
+                      const label = prompt("칼럼 이름:");
+                      if (!label) return;
+                      const type = prompt("타입 (text / number / currency):", "text") as "text"|"number"|"currency" || "text";
+                      const key = label.toLowerCase().replace(/[^a-z0-9]/g, "_") + "_" + Date.now().toString(36);
+                      updateQuotation({ resource: "quotations", id, values: { columns: [...quotation.columns, { key, label, type, width: 100 }] } }, { onSuccess: () => qq.refetch() });
+                    }}>+</span>
                 </th>
-              ))}
-              {/* Divider + Internal (우측 마진 계산) */}
-              <th style={{ background: "#fff7ed", borderBottom: "2px solid #f15f23", borderLeft: "3px solid #f15f23", width: 3 }} />
-              <th style={{ padding: "8px 6px", background: "#fff7ed", borderBottom: "2px solid #f15f23", minWidth: 80, textAlign: "right", fontSize: 11 }}>원가</th>
-              <th style={{ padding: "8px 6px", background: "#fff7ed", borderBottom: "2px solid #f15f23", width: 55, fontSize: 11 }}>통화</th>
-              <th style={{ padding: "8px 6px", background: "#fff7ed", borderBottom: "2px solid #f15f23", minWidth: 80, textAlign: "right", fontSize: 11 }}>원가(USD)</th>
-              <th style={{ padding: "8px 6px", background: "#fff7ed", borderBottom: "2px solid #f15f23", minWidth: 60, textAlign: "right", fontSize: 11 }}>마진%</th>
-              <th style={{ padding: "8px 6px", background: "#fff7ed", borderBottom: "2px solid #f15f23", minWidth: 80, textAlign: "right", fontSize: 11 }}>판매가</th>
-              <th style={{ padding: "8px 6px", background: "#fff7ed", borderBottom: "2px solid #f15f23", minWidth: 80, textAlign: "right", fontSize: 11 }}>마진액</th>
-              <th style={{ width: 32, background: "#f5f5f5", borderBottom: "2px solid #e0e0e0" }} />
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((item, idx) => {
-              const costUSD = convertCurrency(item.cost_price || 0, item.cost_currency, rates);
-              const isMergedRow = String(item.cells?._merged) === "true";
-
-              if (isMergedRow) {
-                // 병합 행: 좌측 칼럼 전체를 하나로 병합 (예: "Air Freight")
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((item, idx) => {
+                const isMerged = String(item.cells?._merged) === "true";
                 return (
-                  <tr key={item.id} style={{ borderBottom: "1px solid #f0f0f0", background: "#fafafa" }}>
-                    <td style={{ padding: "4px 6px", textAlign: "center", color: "#999" }}>{idx + 1}</td>
-                    <td colSpan={quotation.columns.length} style={{ padding: "4px 6px" }}>
-                      <Input size="small" variant="borderless" value={String(item.cells?._merged_label || "")}
-                        placeholder="항목명 (예: Air Freight, Inspection Fee...)"
-                        style={{ fontWeight: 500, textAlign: "center" }}
-                        onChange={(e) => {
-                          const newCells = { ...item.cells, _merged_label: e.target.value };
-                          updateItem({ resource: "quotation_items", id: item.id, values: { cells: newCells } });
-                        }} />
-                    </td>
-                    {/* 우측 마진 영역 */}
-                    <td style={{ borderLeft: "3px solid #f15f23" }} />
-                    <td colSpan={4} style={{ background: "#fffbf5" }} />
-                    <td style={{ padding: "4px 4px", background: "#fffbf5", textAlign: "right" }}>
-                      <InputNumber size="small" value={item.selling_price || undefined} style={{ width: 75 }}
-                        onChange={(v) => {
-                          const amount = v || 0;
-                          updateItem({ resource: "quotation_items", id: item.id,
-                            values: { selling_price: amount, cells: { ...item.cells, amount } } },
-                            { onSuccess: () => iq.refetch() });
-                        }} />
-                    </td>
-                    <td style={{ background: "#fffbf5" }} />
-                    <td style={{ padding: "4px", textAlign: "center" }}>
-                      <DeleteOutlined style={{ color: "#ff4d4f", cursor: "pointer", fontSize: 11 }}
+                  <tr key={item.id} style={{ borderBottom: "1px solid #f0f0f0" }}>
+                    <td style={{ padding: "4px 6px", textAlign: "center", color: "#999", fontSize: 11 }}>{idx + 1}</td>
+                    {isMerged ? (
+                      <td colSpan={quotation.columns.length} style={{ padding: "2px 4px" }}>
+                        <Input size="small" variant="borderless" defaultValue={String(item.cells?._merged_label || "")}
+                          placeholder="항목명 (예: Air Freight)"
+                          style={{ fontWeight: 500, textAlign: "center" }}
+                          onBlur={(e) => updateItem({ resource: "quotation_items", id: item.id, values: { cells: { ...item.cells, _merged_label: e.target.value } } })} />
+                      </td>
+                    ) : (
+                      quotation.columns.map((col) => {
+                        const isNum = col.type === "number" || col.type === "currency";
+                        return (
+                          <td key={col.key} style={{ padding: "1px 2px" }}>
+                            {isNum ? (
+                              <InputNumber size="small" variant="borderless" defaultValue={Number(item.cells?.[col.key]) || undefined}
+                                style={{ width: "100%", textAlign: "right" }}
+                                onBlur={(e) => {
+                                  const val = Number(e.target.value) || 0;
+                                  const newCells = { ...item.cells, [col.key]: val };
+                                  if (quotation.columns.some(c => c.key === "price") && quotation.columns.some(c => c.key === "qty")) {
+                                    newCells.amount = Math.round((Number(newCells.price) || 0) * (Number(newCells.qty) || 0) * 100) / 100;
+                                  }
+                                  updateItem({ resource: "quotation_items", id: item.id, values: { cells: newCells, selling_price: Number(newCells.amount) || 0 } }, { onSuccess: () => iq.refetch() });
+                                }} />
+                            ) : (
+                              <Input size="small" variant="borderless" defaultValue={String(item.cells?.[col.key] ?? "")}
+                                onBlur={(e) => updateItem({ resource: "quotation_items", id: item.id, values: { cells: { ...item.cells, [col.key]: e.target.value } } })} />
+                            )}
+                          </td>
+                        );
+                      })
+                    )}
+                    <td style={{ padding: "2px" }}>
+                      <DeleteOutlined style={{ color: "#ff4d4f", cursor: "pointer", fontSize: 10 }}
                         onClick={() => deleteItem({ resource: "quotation_items", id: item.id }, { onSuccess: () => iq.refetch() })} />
                     </td>
                   </tr>
                 );
-              }
+              })}
+            </tbody>
+            <tfoot>
+              <tr style={{ borderTop: "2px solid #1890ff", background: "#f0f7ff" }}>
+                <td colSpan={quotation.columns.length + 2} style={{ padding: "6px 12px" }}>
+                  <Space>
+                    <Button size="small" icon={<PlusOutlined />}
+                      onClick={() => createItem({ resource: "quotation_items",
+                        values: { quotation_id: id, sort_order: items.length, cells: {}, cost_price: 0, cost_currency: "CNY", selling_price: 0, margin_percent: 0, margin_amount: 0, extra_costs: [] },
+                      }, { onSuccess: () => iq.refetch() })}>행 추가</Button>
+                    <Button size="small" type="dashed" icon={<PlusOutlined />}
+                      onClick={() => createItem({ resource: "quotation_items",
+                        values: { quotation_id: id, sort_order: items.length, cells: { _merged: "true", _merged_label: "", amount: 0 }, cost_price: 0, cost_currency: "CNY", selling_price: 0, margin_percent: 0, margin_amount: 0, extra_costs: [] },
+                      }, { onSuccess: () => iq.refetch() })}>병합 행</Button>
+                  </Space>
+                </td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
 
-              // 일반 행: 좌측 각 칼럼별 편집 가능
-              return (
-                <tr key={item.id} style={{ borderBottom: "1px solid #f0f0f0" }}>
-                  <td style={{ padding: "4px 6px", textAlign: "center", color: "#999" }}>{idx + 1}</td>
-                  {quotation.columns.map((col) => {
-                    const v = item.cells?.[col.key] ?? "";
-                    const isNum = col.type === "number" || col.type === "currency";
-                    return (
-                      <td key={col.key} style={{ padding: "2px 3px" }}>
-                        {isNum ? (
-                          <InputNumber size="small" variant="borderless" value={Number(v) || undefined}
-                            style={{ width: "100%", textAlign: "right" }}
-                            onChange={(val) => {
-                              const newCells = { ...item.cells, [col.key]: val || 0 };
-                              // price * qty = amount 자동 계산
-                              const hasPrice = quotation.columns.some(c => c.key === "price");
-                              const hasQty = quotation.columns.some(c => c.key === "qty");
-                              if (hasPrice && hasQty) {
-                                newCells.amount = Math.round((Number(newCells.price) || 0) * (Number(newCells.qty) || 0) * 100) / 100;
-                              }
-                              updateItem({ resource: "quotation_items", id: item.id,
-                                values: { cells: newCells, selling_price: Number(newCells.amount) || 0 } },
-                                { onSuccess: () => iq.refetch() });
-                            }} />
-                        ) : (
-                          <Input size="small" variant="borderless" value={String(v)}
-                            style={{ textAlign: col.key === "amount" ? "right" : "left" }}
-                            onChange={(e) => {
-                              updateItem({ resource: "quotation_items", id: item.id,
-                                values: { cells: { ...item.cells, [col.key]: e.target.value } } });
-                            }} />
-                        )}
+        {/* ===== 우측: 내부 마진 계산 ===== */}
+        <div style={{ border: "2px solid #f15f23", borderLeft: "none", borderRadius: "0 8px 8px 0", background: "#fff", flexShrink: 0 }}>
+          <div style={{ background: "#fff7ed", padding: "6px 12px", borderBottom: "1px solid #f15f23" }}>
+            <Text strong style={{ color: "#f15f23", fontSize: 11 }}>🔒 내부 마진 계산</Text>
+          </div>
+          <table style={{ borderCollapse: "collapse", fontSize: 12 }}>
+            <thead>
+              <tr>
+                <th style={{ padding: "6px", background: "#fff7ed", minWidth: 75, textAlign: "right", fontSize: 10 }}>원가</th>
+                <th style={{ padding: "6px", background: "#fff7ed", width: 50, fontSize: 10 }}>통화</th>
+                <th style={{ padding: "6px", background: "#fff7ed", minWidth: 70, textAlign: "right", fontSize: 10 }}>원가(USD)</th>
+                <th style={{ padding: "6px", background: "#fff7ed", minWidth: 55, textAlign: "right", fontSize: 10 }}>마진%</th>
+                <th style={{ padding: "6px", background: "#fff7ed", minWidth: 75, textAlign: "right", fontSize: 10 }}>판매가</th>
+                <th style={{ padding: "6px", background: "#fff7ed", minWidth: 75, textAlign: "right", fontSize: 10 }}>마진액</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((item) => {
+                const costUSD = convertCurrency(item.cost_price || 0, item.cost_currency, rates);
+                const isMerged = String(item.cells?._merged) === "true";
+
+                if (isMerged) {
+                  return (
+                    <tr key={item.id} style={{ borderBottom: "1px solid #f0f0f0", background: "#fafafa" }}>
+                      <td colSpan={4} style={{ padding: "4px 6px", color: "#999", fontSize: 10, textAlign: "center" }}>—</td>
+                      <td style={{ padding: "2px 4px", textAlign: "right" }}>
+                        <InputNumber size="small" defaultValue={item.selling_price || undefined} style={{ width: 70 }}
+                          onBlur={(e) => {
+                            const amount = Number(e.target.value) || 0;
+                            updateItem({ resource: "quotation_items", id: item.id,
+                              values: { selling_price: amount, cells: { ...item.cells, amount } } },
+                              { onSuccess: () => iq.refetch() });
+                          }} />
                       </td>
-                    );
-                  })}
-                  {/* 우측: 마진 계산 */}
-                  <td style={{ borderLeft: "3px solid #f15f23" }} />
-                  <td style={{ padding: "4px 4px", background: "#fffbf5", textAlign: "right" }}>
-                    <InputNumber size="small" value={item.cost_price || undefined} style={{ width: 75 }}
-                      onChange={(v) => onCostChange(item.id, "cost_price", v || 0)} />
-                  </td>
-                  <td style={{ padding: "4px 2px", background: "#fffbf5" }}>
-                    <Select size="small" value={item.cost_currency} style={{ width: 55 }}
-                      onChange={(v) => onCostChange(item.id, "cost_currency", v)}
-                      options={[{ value: "CNY" }, { value: "KRW" }]} />
-                  </td>
-                  <td style={{ padding: "4px 6px", background: "#fffbf5", textAlign: "right", color: "#999", fontSize: 11 }}>
-                    {formatCurrency(costUSD, "USD")}
-                  </td>
-                  <td style={{ padding: "4px 4px", background: "#fffbf5", textAlign: "right" }}>
-                    <InputNumber size="small" value={item.margin_percent || undefined} style={{ width: 55 }}
-                      onChange={(v) => onCostChange(item.id, "margin_percent", v || 0)} />
-                  </td>
-                  <td style={{ padding: "4px 4px", background: "#fffbf5", textAlign: "right" }}>
-                    <InputNumber size="small" value={item.selling_price || undefined} style={{ width: 75 }}
-                      onChange={(v) => onCostChange(item.id, "selling_price", v || 0)} />
-                  </td>
-                  <td style={{ padding: "4px 6px", background: "#fffbf5", textAlign: "right", fontWeight: 600,
-                    color: (item.margin_amount || 0) >= 0 ? "#52c41a" : "#ff4d4f" }}>
-                    {formatCurrency(item.margin_amount || 0, quotation.currency)}
-                  </td>
-                  <td style={{ padding: "4px", textAlign: "center" }}>
-                    <DeleteOutlined style={{ color: "#ff4d4f", cursor: "pointer", fontSize: 11 }}
-                      onClick={() => deleteItem({ resource: "quotation_items", id: item.id }, { onSuccess: () => iq.refetch() })} />
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-          <tfoot>
-            <tr style={{ borderTop: "2px solid #e0e0e0", background: "#f9f9f9" }}>
-              <td colSpan={quotation.columns.length + 1} style={{ padding: "8px 6px", fontWeight: 700 }}>TTL</td>
-              <td style={{ borderLeft: "3px solid #f15f23" }} />
-              <td colSpan={2} style={{ padding: "8px 6px", background: "#fff7ed", fontSize: 11, textAlign: "right" }}>
-                총원가 {formatCurrency(summary.totalCost, "USD")}
-              </td>
-              <td colSpan={2} style={{ padding: "8px 6px", background: "#fff7ed", fontSize: 11, textAlign: "right" }}>
-                부대비용 {formatCurrency(summary.totalExtraCosts, "USD")}
-              </td>
-              <td style={{ padding: "8px 6px", background: summary.totalMargin >= 0 ? "#f6ffed" : "#fff2f0", fontWeight: 700, textAlign: "right",
-                color: summary.totalMargin >= 0 ? "#52c41a" : "#ff4d4f" }}>
-                마진 {formatCurrency(summary.totalMargin, quotation.currency)} ({summary.marginPercent}%)
-              </td>
-              <td />
-            </tr>
-          </tfoot>
-        </table>
-      </div>
+                      <td style={{ padding: "4px 6px", color: "#999" }}>—</td>
+                    </tr>
+                  );
+                }
 
-      {/* 행 추가 버튼 (일반 + 병합) */}
-      <Space style={{ marginTop: 8 }}>
-        <Button size="small" icon={<PlusOutlined />}
-          onClick={() => createItem({ resource: "quotation_items",
-            values: { quotation_id: id, sort_order: items.length, cells: {}, cost_price: 0, cost_currency: "CNY", selling_price: 0, margin_percent: 0, margin_amount: 0, extra_costs: [] },
-          }, { onSuccess: () => iq.refetch() })}>일반 행 추가</Button>
-        <Button size="small" icon={<PlusOutlined />} type="dashed"
-          onClick={() => createItem({ resource: "quotation_items",
-            values: { quotation_id: id, sort_order: items.length, cells: { _merged: true, _merged_label: "", amount: 0 }, cost_price: 0, cost_currency: "CNY", selling_price: 0, margin_percent: 0, margin_amount: 0, extra_costs: [] },
-          }, { onSuccess: () => iq.refetch() })}>병합 행 추가 (Air Freight 등)</Button>
-      </Space>
+                return (
+                  <tr key={item.id} style={{ borderBottom: "1px solid #f0f0f0" }}>
+                    <td style={{ padding: "2px 4px", background: "#fffbf5", textAlign: "right" }}>
+                      <InputNumber size="small" defaultValue={item.cost_price || undefined} style={{ width: 70 }}
+                        onBlur={(e) => onCostChange(item.id, "cost_price", Number(e.target.value) || 0)} />
+                    </td>
+                    <td style={{ padding: "2px", background: "#fffbf5" }}>
+                      <Select size="small" value={item.cost_currency} style={{ width: 50 }}
+                        onChange={(v) => onCostChange(item.id, "cost_currency", v)}
+                        options={[{ value: "CNY" }, { value: "KRW" }]} />
+                    </td>
+                    <td style={{ padding: "4px 6px", background: "#fffbf5", textAlign: "right", color: "#999", fontSize: 10 }}>
+                      {formatCurrency(costUSD, "USD")}
+                    </td>
+                    <td style={{ padding: "2px 4px", background: "#fffbf5", textAlign: "right" }}>
+                      <InputNumber size="small" defaultValue={item.margin_percent || undefined} style={{ width: 50 }}
+                        onBlur={(e) => onCostChange(item.id, "margin_percent", Number(e.target.value) || 0)} />
+                    </td>
+                    <td style={{ padding: "2px 4px", background: "#fffbf5", textAlign: "right" }}>
+                      <InputNumber size="small" defaultValue={item.selling_price || undefined} style={{ width: 70 }}
+                        onBlur={(e) => onCostChange(item.id, "selling_price", Number(e.target.value) || 0)} />
+                    </td>
+                    <td style={{ padding: "4px 6px", background: "#fffbf5", textAlign: "right", fontWeight: 600,
+                      color: (item.margin_amount || 0) >= 0 ? "#52c41a" : "#ff4d4f" }}>
+                      {formatCurrency(item.margin_amount || 0, quotation.currency)}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+            <tfoot>
+              <tr style={{ borderTop: "2px solid #f15f23", background: "#fff7ed" }}>
+                <td colSpan={2} style={{ padding: "6px", fontSize: 10, textAlign: "right" }}>총원가 {formatCurrency(summary.totalCost, "USD")}</td>
+                <td colSpan={2} style={{ padding: "6px", fontSize: 10, textAlign: "right" }}>부대 {formatCurrency(summary.totalExtraCosts, "USD")}</td>
+                <td colSpan={2} style={{ padding: "6px", fontWeight: 700, textAlign: "right",
+                  color: summary.totalMargin >= 0 ? "#52c41a" : "#ff4d4f" }}>
+                  마진 {formatCurrency(summary.totalMargin, quotation.currency)} ({summary.marginPercent}%)
+                </td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
 
       {/* Global costs */}
       <div style={{ marginTop: 12, padding: 12, background: "#fafafa", borderRadius: 8 }}>
