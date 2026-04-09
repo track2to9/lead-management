@@ -115,3 +115,61 @@ export interface Evidence {
   collected_at: string;
   content_date?: string;
 }
+
+// --- Quotation Builder ---
+
+export interface QuotationColumn {
+  key: string;
+  label: string;
+  type: "text" | "number" | "currency";
+  width?: number;
+}
+
+export interface QuotationTemplate {
+  id: string;
+  user_id?: string;
+  name: string;
+  columns: QuotationColumn[];
+  footer_defaults: Record<string, string>;
+  is_system: boolean;
+  created_at: string;
+}
+
+export interface ExtraCost {
+  name: string;
+  amount: number;
+  currency: string;
+}
+
+export interface QuotationItem {
+  id: string;
+  quotation_id: string;
+  sort_order: number;
+  cells: Record<string, string | number>;
+  cost_price: number | null;
+  cost_currency: string;
+  selling_price: number | null;
+  margin_percent: number | null;
+  margin_amount: number | null;
+  extra_costs: ExtraCost[];
+  created_at: string;
+}
+
+export interface Quotation {
+  id: string;
+  user_id: string;
+  template_id?: string;
+  ref_no: string;
+  date: string;
+  client_name?: string;
+  status: "draft" | "final";
+  columns: QuotationColumn[];
+  currency: string;
+  exchange_rates: Record<string, number>;
+  margin_mode: "forward" | "reverse";
+  footer: Record<string, string>;
+  company_header: Record<string, string>;
+  global_costs: ExtraCost[];
+  created_at: string;
+  updated_at: string;
+}
