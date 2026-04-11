@@ -24,10 +24,12 @@ CREATE INDEX IF NOT EXISTS idx_quotations_source_status
 --    Public: false
 --    Then run the RLS policies below.
 
--- 5. Storage RLS — allow users to read/write their own imports
---    Note: path convention is {user_id}/{quotation_id}/{filename}
+-- 5. Storage RLS — allow users to read/write/update/delete their own imports.
+--    Path convention: {user_id}/{quotation_id}/{filename}
 --    The first path segment must equal auth.uid().
+--    All four policies are dropped first so the file is safely re-runnable.
 
+DROP POLICY IF EXISTS "Users can upload their own quotation imports" ON storage.objects;
 CREATE POLICY "Users can upload their own quotation imports"
   ON storage.objects FOR INSERT TO authenticated
   WITH CHECK (
@@ -35,8 +37,29 @@ CREATE POLICY "Users can upload their own quotation imports"
     AND (storage.foldername(name))[1] = auth.uid()::text
   );
 
+DROP POLICY IF EXISTS "Users can read their own quotation imports" ON storage.objects;
 CREATE POLICY "Users can read their own quotation imports"
   ON storage.objects FOR SELECT TO authenticated
+  USING (
+    bucket_id = 'quotation-imports'
+    AND (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+DROP POLICY IF EXISTS "Users can update their own quotation imports" ON storage.objects;
+CREATE POLICY "Users can update their own quotation imports"
+  ON storage.objects FOR UPDATE TO authenticated
+  USING (
+    bucket_id = 'quotation-imports'
+    AND (storage.foldername(name))[1] = auth.uid()::text
+  )
+  WITH CHECK (
+    bucket_id = 'quotation-imports'
+    AND (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+DROP POLICY IF EXISTS "Users can delete their own quotation imports" ON storage.objects;
+CREATE POLICY "Users can delete their own quotation imports"
+  ON storage.objects FOR DELETE TO authenticated
   USING (
     bucket_id = 'quotation-imports'
     AND (storage.foldername(name))[1] = auth.uid()::text
