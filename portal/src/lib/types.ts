@@ -155,6 +155,36 @@ export interface QuotationItem {
   created_at: string;
 }
 
+export type QuotationSource = "manual" | "imported_pdf";
+export type QuotationStatus = "draft" | "final" | "imported_unverified";
+
+export interface ImportConfidence {
+  // Top-level field confidences (0..1)
+  ref_no?: number;
+  date?: number;
+  client_name?: number;
+  currency?: number;
+  // Per-item, per-cell confidence keyed by item id
+  items?: Record<string, Record<string, number>>;
+  // Footer field confidences
+  footer?: Record<string, number>;
+  // Free-form LLM note addressed to the human reviewer
+  notes_for_human?: string;
+  // Extraction failure reason (present only on failure)
+  failure_reason?: string;
+}
+
+export interface ExtractedPageSnapshot {
+  page_number: number;
+  text: string;
+  tables: string[][][]; // [table][row][col]
+}
+
+export interface ImportSourceSnapshot {
+  pages: ExtractedPageSnapshot[];
+  extracted_at: string; // ISO timestamp
+}
+
 export interface Quotation {
   id: string;
   user_id: string;
@@ -162,7 +192,7 @@ export interface Quotation {
   ref_no: string;
   date: string;
   client_name?: string;
-  status: "draft" | "final";
+  status: QuotationStatus;
   columns: QuotationColumn[];
   cost_columns?: QuotationColumn[];  // 우측 마진 계산용 추가 칼럼
   currency: string;
@@ -171,6 +201,12 @@ export interface Quotation {
   footer: Record<string, string>;
   company_header: Record<string, string>;
   global_costs: ExtraCost[];
+  // Import-related (Phase 1)
+  source: QuotationSource;
+  import_pdf_url?: string | null;
+  import_confidence?: ImportConfidence | null;
+  import_source_snapshot?: ImportSourceSnapshot | null;
+  verified_at?: string | null;
   created_at: string;
   updated_at: string;
 }
