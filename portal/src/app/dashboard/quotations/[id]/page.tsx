@@ -6,9 +6,11 @@ import { Input, InputNumber, Select, Button, Space, Typography, Breadcrumb, Tag,
 import { HomeOutlined, CheckCircleOutlined, FilePdfOutlined, PlusOutlined, DeleteOutlined, CalculatorOutlined, FileTextOutlined, MinusCircleOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import Link from "next/link";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { EyeOutlined, EyeInvisibleOutlined } from "@ant-design/icons";
 import type { Quotation, QuotationItem, QuotationColumn, ExtraCost } from "@/lib/types";
 import { calcForward, calcReverse, calcSummary, formatCurrency, convertCurrency } from "@/lib/quotation-calc";
+import { useRefExchangeRates } from "@/lib/use-exchange-rates";
 import QuotationPDF from "@/components/quotation/QuotationPDF";
 import ImageUploader from "@/components/quotation/ImageUploader";
 // ColumnManager removed — column controls now inline in table header
@@ -22,7 +24,15 @@ export default function QuotationEditorPage() {
   const [editingColIdx, setEditingColIdx] = useState<number | null>(null);
   const [dragCol, setDragCol] = useState<number | null>(null);
   const [dragOverCol, setDragOverCol] = useState<number | null>(null);
+  const [resizingCol, setResizingCol] = useState<number | null>(null);
+  const [editingCostColIdx, setEditingCostColIdx] = useState<number | null>(null);
+  const [dragCostCol, setDragCostCol] = useState<number | null>(null);
+  const [dragOverCostCol, setDragOverCostCol] = useState<number | null>(null);
+  const [resizingCostCol, setResizingCostCol] = useState<number | null>(null);
+  const resizeStartX = useRef(0);
+  const resizeStartW = useRef(0);
   const saveTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const refRates = useRefExchangeRates();
 
   const { query: qq } = useOne<Quotation>({ resource: "quotations", id });
   const { query: iq } = useList<QuotationItem>({
@@ -37,34 +47,107 @@ export default function QuotationEditorPage() {
   const { mutate: updateItem } = useUpdate();
   const { mutate: deleteItem } = useDelete();
 
-  const q = qq.data?.data as Quotation | undefined;
-  const items = iq.data?.data || [];
+  const qRaw = qq.data?.data as Quotation | undefined;
+  const itemsRaw = iq.data?.data || [];
 
-  if (qq.isLoading || !q) {
+  // === Local state (편집은 로컬, 저장 시에만 DB) ===
+  const [localQ, setLocalQ] = useState<Quotation | null>(null);
+  const [localItems, setLocalItems] = useState<QuotationItem[]>([]);
+  const [isDirty, setIsDirty] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  // DB → 로컬 동기화 (최초 로드 및 외부 변경 시)
+  useEffect(() => {
+    if (qRaw && !isDirty) setLocalQ(qRaw);
+  }, [qRaw]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (itemsRaw.length > 0 && !isDirty) setLocalItems(itemsRaw);
+  }, [itemsRaw]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (qq.isLoading || !localQ) {
     return <div style={{ textAlign: "center", padding: 64 }}><Spin size="large" /></div>;
   }
 
-  // TS can't narrow `q` inside closures after early return. Force it.
-  const quotation = q as Quotation;
+  const quotation = localQ;
+  const items = localItems;
 
   const rates = quotation.exchange_rates || {};
   const h = quotation.company_header || {};
   const f = quotation.footer || {};
+  const costCols = quotation.cost_columns || [];
   const summary = calcSummary(items, quotation.global_costs || [], rates);
   const totalAmount = items.reduce((s, i) => s + (Number(i.cells?.amount) || 0), 0);
+  const visibleItems = items.filter((i) => String(i.cells?._visible) !== "false");
+  const visibleTotalAmount = visibleItems.reduce((s, i) => s + (Number(i.cells?.amount) || 0), 0);
 
-  // --- save helpers ---
-  function saveQ(values: Partial<Quotation>) {
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = setTimeout(() => {
-      updateQuotation({ resource: "quotations", id, values });
-    }, 300);
+  // --- 로컬 수정 헬퍼 (DB 안 씀) ---
+  function editQ(values: Partial<Quotation>) {
+    setLocalQ((prev) => prev ? { ...prev, ...values } : prev);
+    setIsDirty(true);
   }
+  function saveQ(values: Partial<Quotation>) { editQ(values); }
   function saveHeader(key: string, value: string) {
-    saveQ({ company_header: { ...h, [key]: value } });
+    editQ({ company_header: { ...h, [key]: value } });
   }
   function saveFooter(key: string, value: string) {
-    saveQ({ footer: { ...f, [key]: value } });
+    editQ({ footer: { ...f, [key]: value } });
+  }
+  function editItem(itemId: string, values: Partial<QuotationItem>) {
+    setLocalItems((prev) => prev.map((i) => i.id === itemId ? { ...i, ...values } as QuotationItem : i));
+    setIsDirty(true);
+  }
+  function addLocalItem(values: Partial<QuotationItem>) {
+    const tempId = "temp_" + Date.now().toString(36);
+    setLocalItems((prev) => [...prev, { id: tempId, quotation_id: id, sort_order: prev.length, cells: {}, cost_price: null, cost_currency: "CNY", selling_price: null, margin_percent: null, margin_amount: null, extra_costs: [], created_at: "", ...values } as QuotationItem]);
+    setIsDirty(true);
+  }
+  function removeLocalItem(itemId: string) {
+    setLocalItems((prev) => prev.filter((i) => i.id !== itemId));
+    setIsDirty(true);
+  }
+
+  // --- DB 저장 (임시 저장 / 완료) ---
+  async function flushToDB(newStatus?: "draft" | "final") {
+    setSaving(true);
+    try {
+      // 1) quotation 저장
+      const qValues: Record<string, unknown> = { ...quotation };
+      delete qValues.id; delete qValues.created_at; delete qValues.updated_at; delete qValues.user_id;
+      if (newStatus) qValues.status = newStatus;
+      await new Promise<void>((res, rej) =>
+        updateQuotation({ resource: "quotations", id, values: qValues }, { onSuccess: () => res(), onError: (e) => rej(e) })
+      );
+      // 2) 신규 아이템 생성 + 기존 아이템 업데이트
+      for (const item of localItems) {
+        const { id: itemId, created_at, ...vals } = item;
+        if (itemId.startsWith("temp_")) {
+          await new Promise<void>((res, rej) =>
+            createItem({ resource: "quotation_items", values: { ...vals, quotation_id: id } }, { onSuccess: () => res(), onError: (e) => rej(e) })
+          );
+        } else {
+          await new Promise<void>((res, rej) =>
+            updateItem({ resource: "quotation_items", id: itemId, values: vals }, { onSuccess: () => res(), onError: (e) => rej(e) })
+          );
+        }
+      }
+      // 3) 삭제된 아이템 처리
+      const localIds = new Set(localItems.map((i) => i.id));
+      for (const orig of itemsRaw) {
+        if (!localIds.has(orig.id)) {
+          await new Promise<void>((res, rej) =>
+            deleteItem({ resource: "quotation_items", id: orig.id }, { onSuccess: () => res(), onError: (e) => rej(e) })
+          );
+        }
+      }
+      // 4) 리프레시
+      await qq.refetch();
+      await iq.refetch();
+      setIsDirty(false);
+    } catch (e) {
+      console.error("Save failed:", e);
+    } finally {
+      setSaving(false);
+    }
   }
 
   // --- inline editable text (for viewer tab) ---
@@ -98,9 +181,10 @@ export default function QuotationEditorPage() {
   function onCostChange(itemId: string, field: string, value: number | string) {
     const item = items.find((i) => i.id === itemId);
     if (!item) return;
-    const updates: Record<string, unknown> = { [field]: value };
+    const updates: Partial<QuotationItem> = { [field]: value } as Partial<QuotationItem>;
     const cp = field === "cost_price" ? Number(value) : (item.cost_price || 0);
-    const cc = field === "cost_currency" ? String(value) : item.cost_currency;
+    const cc = String(rates._cost_cur || "CNY");
+    updates.cost_currency = cc;
     if (field === "selling_price") {
       const r = calcReverse(Number(value), cp, cc, item.extra_costs || [], rates);
       updates.margin_percent = r.marginPercent;
@@ -113,7 +197,24 @@ export default function QuotationEditorPage() {
       const qty = Number(item.cells?.qty) || 1;
       updates.cells = { ...item.cells, price: r.sellingPrice, amount: Math.round(r.sellingPrice * qty * 100) / 100 };
     }
-    updateItem({ resource: "quotation_items", id: itemId, values: updates }, { onSuccess: () => iq.refetch() });
+    editItem(itemId, updates);
+  }
+
+  // --- visibility toggle ---
+  function toggleVisibility(itemId: string) {
+    const item = items.find((i) => i.id === itemId);
+    if (!item) return;
+    const isVisible = String(item.cells?._visible) !== "false";
+    editItem(itemId, { cells: { ...item.cells, _visible: isVisible ? "false" : "true" } });
+  }
+
+  // --- convert purchase price to target currency ---
+  function convertTo(amount: number, fromCurrency: string, toCurrency: string): number {
+    if (fromCurrency === toCurrency) return amount;
+    // rates are stored as USD/X (how many X per 1 USD)
+    const toUSD = fromCurrency === "USD" ? amount : amount / (rates[fromCurrency] || 1);
+    if (toCurrency === "USD") return toUSD;
+    return toUSD * (rates[toCurrency] || 1);
   }
 
   // ============================================================
@@ -281,7 +382,7 @@ export default function QuotationEditorPage() {
           </tr>
         </thead>
         <tbody>
-          {items.map((item, idx) => {
+          {items.filter((i) => String(i.cells?._visible) !== "false").map((item, idx) => {
             const isMerged = String(item.cells?._merged) === "true";
             if (isMerged) {
               return (
@@ -309,7 +410,7 @@ export default function QuotationEditorPage() {
           })}
           <tr>
             <td colSpan={quotation.columns.length} style={{ border: "1px solid #333", padding: "6px 8px", textAlign: "right", fontWeight: 700 }}>TTL</td>
-            <td style={{ border: "1px solid #333", padding: "6px 8px", textAlign: "right", fontWeight: 700 }}>{formatCurrency(totalAmount, quotation.currency)}</td>
+            <td style={{ border: "1px solid #333", padding: "6px 8px", textAlign: "right", fontWeight: 700 }}>{formatCurrency(visibleTotalAmount, quotation.currency)}</td>
           </tr>
         </tbody>
       </table>
@@ -410,266 +511,504 @@ export default function QuotationEditorPage() {
   // ============================================================
   const tabCalc = (
     <div>
-      {/* Exchange rate controls */}
-      <div style={{ display: "flex", gap: 12, marginBottom: 16, padding: 12, background: "#fafafa", borderRadius: 8, alignItems: "end", flexWrap: "wrap" }}>
-        <div>
-          <Text type="secondary" style={{ fontSize: 10, display: "block" }}>USD/CNY</Text>
-          <InputNumber size="small" value={rates.CNY || 7.2} style={{ width: 80 }}
-            onChange={(v) => updateQuotation({ resource: "quotations", id, values: { exchange_rates: { ...rates, CNY: v || 7.2 } } }, { onSuccess: () => qq.refetch() })} />
-        </div>
-        <div>
-          <Text type="secondary" style={{ fontSize: 10, display: "block" }}>USD/KRW</Text>
-          <InputNumber size="small" value={rates.KRW || 1380} style={{ width: 80 }}
-            onChange={(v) => updateQuotation({ resource: "quotations", id, values: { exchange_rates: { ...rates, KRW: v || 1380 } } }, { onSuccess: () => qq.refetch() })} />
-        </div>
-        <div>
-          <Text type="secondary" style={{ fontSize: 10, display: "block" }}>출력 통화</Text>
-          <Input size="small" value={quotation.currency} style={{ width: 60 }}
-            onChange={(e) => saveQ({ currency: e.target.value })} />
+      {/* Exchange rate controls — 우측 정렬, 각 환율 한 줄씩 */}
+      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
+        <div style={{ padding: "8px 16px", background: "#fafafa", borderRadius: 8, fontSize: 11, display: "flex", gap: 24 }}>
+          {/* 참조 환율 */}
+          <div>
+            <Text type="secondary" style={{ fontSize: 9, display: "block", marginBottom: 4 }}>
+              📡 참조 환율 {refRates.date ? `(${refRates.date})` : ""} {refRates.loading && <Spin size="small" />}
+            </Text>
+            <div style={{ lineHeight: 2 }}>
+              <div>USD/CNY: <strong>{refRates.USD_CNY ? refRates.USD_CNY.toFixed(4) : "—"}</strong></div>
+              <div>USD/KRW: <strong>{refRates.USD_KRW ? refRates.USD_KRW.toFixed(0) : "—"}</strong></div>
+            </div>
+          </div>
+          {/* 적용 환율 */}
+          <div>
+            <Text type="secondary" style={{ fontSize: 9, display: "block", marginBottom: 4 }}>적용 환율</Text>
+            <div style={{ lineHeight: 2 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                USD/CNY:
+                <InputNumber size="small" value={rates.CNY || 7.2} style={{ width: 80 }}
+                  onChange={(v) => editQ({ exchange_rates: { ...rates, CNY: v || 7.2 } })} />
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                USD/KRW:
+                <InputNumber size="small" value={rates.KRW || 1380} style={{ width: 80 }}
+                  onChange={(v) => editQ({ exchange_rates: { ...rates, KRW: v || 1380 } })} />
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* ===== 좌우 분리 레이아웃 ===== */}
-      <div style={{ display: "flex", gap: 0, overflowX: "auto" }}>
-
-        {/* ===== 좌측: 고객용 테이블 ===== */}
-        <div style={{ border: "2px solid #1890ff", borderRadius: "8px 0 0 8px", background: "#fff", flex: "1 1 auto", minWidth: 400 }}>
-          <div style={{ background: "#e8f4fd", padding: "6px 12px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #1890ff" }}>
-            <Text strong style={{ color: "#1890ff", fontSize: 11 }}>📋 고객 전달용</Text>
-          </div>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-            <thead>
-              <tr>
-                <th style={{ padding: "6px", background: "#f0f7ff", width: 36, fontSize: 10 }}>No</th>
-                {quotation.columns.map((col, ci) => {
-                  const isDragging = dragCol === ci;
-                  const isOver = dragOverCol === ci && dragCol !== ci;
-                  const dropLeft = isOver && dragCol !== null && dragCol > ci;
-                  const dropRight = isOver && dragCol !== null && dragCol < ci;
-
-                  return (
-                    <th key={col.key}
-                      draggable={editingColIdx !== ci}
-                      onDragStart={(e) => {
-                        setDragCol(ci);
-                        e.dataTransfer.effectAllowed = "move";
-                        // 드래그 이미지를 현재 th로 설정
-                        const el = e.currentTarget;
-                        e.dataTransfer.setDragImage(el, el.offsetWidth / 2, el.offsetHeight / 2);
-                      }}
-                      onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; setDragOverCol(ci); }}
-                      onDragLeave={() => { if (dragOverCol === ci) setDragOverCol(null); }}
-                      onDrop={(e) => {
-                        e.preventDefault();
-                        if (dragCol !== null && dragCol !== ci) {
-                          const arr = [...quotation.columns];
-                          const [moved] = arr.splice(dragCol, 1);
-                          arr.splice(ci, 0, moved);
-                          updateQuotation({ resource: "quotations", id, values: { columns: arr } }, { onSuccess: () => qq.refetch() });
-                        }
-                        setDragCol(null); setDragOverCol(null);
-                      }}
-                      onDragEnd={() => { setDragCol(null); setDragOverCol(null); }}
-                      style={{
-                        padding: "4px 2px", background: isDragging ? "#dbeafe" : "#f0f7ff",
-                        minWidth: col.width || 80, textAlign: "center", fontSize: 10,
-                        opacity: isDragging ? 0.5 : 1,
-                        cursor: editingColIdx === ci ? "text" : "grab",
-                        transition: "all 0.15s ease",
-                        borderLeft: dropLeft ? "3px solid #1890ff" : "none",
-                        borderRight: dropRight ? "3px solid #1890ff" : "none",
-                        position: "relative",
-                      }}
-                    >
-                      {/* 삭제 버튼 (우측 상단) */}
-                      <div style={{ position: "absolute", top: 1, right: 3 }}>
+      {/* ===== 좌우 통합 테이블 ===== */}
+      <style>{`
+        .qt-unified { border-collapse: collapse; font-size: 12px; }
+        .qt-unified td, .qt-unified th { vertical-align: middle; box-sizing: border-box; }
+        .qt-unified .ant-input-number, .qt-unified .ant-input, .qt-unified .ant-select { height: 28px !important; }
+        .qt-unified .ant-select .ant-select-selector { height: 28px !important; line-height: 28px !important; }
+        .qt-unified .ant-input-number-input, .qt-unified .ant-input { height: 28px !important; line-height: 28px !important; }
+        .qt-r-border { border-left: 3px solid #f15f23 !important; }
+      `}</style>
+      {/* 통합 테이블 */}
+      <div style={{ overflowX: "auto", border: "2px solid #1890ff", borderRadius: 8, background: "#fff" }}>
+        <table className="qt-unified" style={{ width: "max-content", minWidth: "100%" }}>
+          <colgroup>
+            {/* 좌측: No */}
+            <col style={{ width: 36 }} />
+            {/* 좌측: 동적 칼럼 */}
+            {quotation.columns.map((col) => (
+              <col key={col.key} style={{ width: col.width || 100 }} />
+            ))}
+            {/* 좌측: + 칼럼 추가, 👁 가시성, 행 삭제 */}
+            <col style={{ width: 32 }} />
+            <col style={{ width: 24 }} />
+            <col style={{ width: 24 }} />
+            {/* 우측: 구매단가, 환산, [추가칼럼...], 원가합(KRW), 마진율, + */}
+            <col style={{ width: 100 }} />
+            <col style={{ width: 100 }} />
+            {costCols.map((cc) => (
+              <col key={cc.key} style={{ width: cc.width || 80 }} />
+            ))}
+            <col style={{ width: 110 }} />
+            <col style={{ width: 65 }} />
+            <col style={{ width: 28 }} />
+          </colgroup>
+          <thead>
+            {/* 타이틀 행 */}
+            <tr>
+              <th colSpan={quotation.columns.length + 4} style={{ background: "#e8f4fd", padding: "6px 12px", textAlign: "left", borderBottom: "1px solid #1890ff" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <Text strong style={{ color: "#1890ff", fontSize: 11 }}>📋 고객 전달용</Text>
+                  <Space size={4}>
+                    <span style={{ fontSize: 10, color: "#666" }}>통화</span>
+                    <Select size="small" value={quotation.currency} style={{ width: 70 }}
+                      onChange={(v) => saveQ({ currency: v })}
+                      options={[{ value: "USD", label: "USD($)" }, { value: "EUR", label: "EUR(€)" }, { value: "KRW", label: "KRW(₩)" }, { value: "CNY", label: "CNY(¥)" }]} />
+                    <Button size="small" icon={<PlusOutlined />}
+                      onClick={() => addLocalItem({ sort_order: items.length, cells: {}, cost_price: 0, cost_currency: "CNY", selling_price: 0, margin_percent: 0, margin_amount: 0, extra_costs: [] })}>행 추가</Button>
+                    <Button size="small" type="dashed" icon={<PlusOutlined />}
+                      onClick={() => addLocalItem({ sort_order: items.length, cells: { _merged: "true", _merged_label: "", amount: 0 }, cost_price: 0, cost_currency: "CNY", selling_price: 0, margin_percent: 0, margin_amount: 0, extra_costs: [] })}>병합 행</Button>
+                  </Space>
+                </div>
+              </th>
+              <th className="qt-r-border" colSpan={4 + costCols.length + 1} style={{ background: "#fff7ed", padding: "6px 12px", textAlign: "left", borderBottom: "1px solid #f15f23" }}>
+                <Text strong style={{ color: "#f15f23", fontSize: 11 }}>🔒 내부 마진 계산</Text>
+              </th>
+            </tr>
+            {/* 칼럼 헤더 행 */}
+            <tr>
+              {/* 좌측 헤더 */}
+              <th style={{ padding: "6px", background: "#f0f7ff", fontSize: 10 }}>No</th>
+              {quotation.columns.map((col, ci) => {
+                const isDragging = dragCol === ci;
+                const isOver = dragOverCol === ci && dragCol !== ci;
+                const dropLeft = isOver && dragCol !== null && dragCol > ci;
+                const dropRight = isOver && dragCol !== null && dragCol < ci;
+                return (
+                  <th key={col.key}
+                    draggable={editingColIdx !== ci && resizingCol === null}
+                    onDragStart={(e) => {
+                      if (resizingCol !== null) { e.preventDefault(); return; }
+                      setDragCol(ci);
+                      e.dataTransfer.effectAllowed = "move";
+                      const el = e.currentTarget;
+                      e.dataTransfer.setDragImage(el, el.offsetWidth / 2, el.offsetHeight / 2);
+                    }}
+                    onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; setDragOverCol(ci); }}
+                    onDragLeave={() => { if (dragOverCol === ci) setDragOverCol(null); }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      if (dragCol !== null && dragCol !== ci) {
+                        const arr = [...quotation.columns];
+                        const [moved] = arr.splice(dragCol, 1);
+                        arr.splice(ci, 0, moved);
+                        editQ({ columns: arr });
+                      }
+                      setDragCol(null); setDragOverCol(null);
+                    }}
+                    onDragEnd={() => { setDragCol(null); setDragOverCol(null); }}
+                    style={{
+                      padding: "4px 2px", background: isDragging ? "#dbeafe" : "#f0f7ff",
+                      textAlign: "center", fontSize: 10,
+                      opacity: isDragging ? 0.5 : 1,
+                      cursor: editingColIdx === ci ? "text" : "grab",
+                      transition: "all 0.15s ease",
+                      borderLeft: dropLeft ? "3px solid #1890ff" : undefined,
+                      borderRight: dropRight ? "3px solid #1890ff" : undefined,
+                      position: "relative", overflow: "hidden",
+                    }}
+                  >
+                    {/* 삭제 버튼 — Price, Qty, Amount 삭제 불가 */}
+                    {!["price", "qty", "amount"].includes(col.key) && (
+                    <div style={{ position: "absolute", top: 1, right: 8, zIndex: 3 }}>
+                      <Popconfirm
+                        title={`"${col.label}" 칼럼을 삭제할까요?`}
+                        okText="삭제" cancelText="취소" okButtonProps={{ danger: true, size: "small" }} cancelButtonProps={{ size: "small" }}
+                        onConfirm={() => {
+                          editQ({ columns: quotation.columns.filter((_, i) => i !== ci) });
+                        }}
+                      >
                         <span style={{ cursor: "pointer", color: "#ff4d4f", fontSize: 8, opacity: 0.4, transition: "opacity 0.15s" }}
-                          title="삭제"
                           onMouseEnter={(e) => (e.currentTarget.style.opacity = "1")}
                           onMouseLeave={(e) => (e.currentTarget.style.opacity = "0.4")}
-                          onClick={(e) => { e.stopPropagation(); if (confirm(`"${col.label}" 삭제?`)) { updateQuotation({ resource: "quotations", id, values: { columns: quotation.columns.filter((_, i) => i !== ci) } }, { onSuccess: () => qq.refetch() }); } }}>✕</span>
-                      </div>
-                      {/* 드래그 핸들 아이콘 */}
-                      <div style={{ fontSize: 8, color: "#ccc", marginBottom: 1, cursor: "grab" }}>⠿</div>
-                      {/* 칼럼 이름 (클릭하면 편집) */}
-                      {editingColIdx === ci ? (
-                        <Input size="small" autoFocus defaultValue={col.label}
-                          style={{ width: "100%", textAlign: "center", fontSize: 11, fontWeight: 600 }}
-                          onBlur={(e) => {
-                            const arr = [...quotation.columns]; arr[ci] = { ...arr[ci], label: e.target.value || col.label };
-                            updateQuotation({ resource: "quotations", id, values: { columns: arr } }, { onSuccess: () => qq.refetch() });
-                            setEditingColIdx(null);
-                          }}
-                          onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") setEditingColIdx(null); }}
-                        />
-                      ) : (
-                        <span style={{ cursor: "text", borderBottom: "1px dashed #bbb", padding: "1px 4px", fontWeight: 600 }}
-                          onClick={() => setEditingColIdx(ci)} title="클릭하여 이름 변경">
-                          {col.label}
-                        </span>
-                      )}
-                    </th>
-                  );
-                })}
-                {/* 칼럼 추가 버튼 */}
-                <th style={{ padding: "4px", background: "#f0f7ff", width: 32, verticalAlign: "middle" }}>
-                  <Button type="text" size="small" icon={<PlusOutlined />}
-                    style={{ color: "#1890ff", fontSize: 12 }} title="칼럼 추가"
-                    onClick={() => {
-                      const key = "col_" + Date.now().toString(36);
-                      const newCols = [...quotation.columns, { key, label: "새 칼럼", type: "text" as const, width: 100 }];
-                      updateQuotation({ resource: "quotations", id, values: { columns: newCols } }, {
-                        onSuccess: () => { qq.refetch(); setEditingColIdx(newCols.length - 1); },
-                      });
-                    }} />
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((item, idx) => {
-                const isMerged = String(item.cells?._merged) === "true";
-                return (
-                  <tr key={item.id} style={{ borderBottom: "1px solid #f0f0f0" }}>
-                    <td style={{ padding: "4px 6px", textAlign: "center", color: "#999", fontSize: 11 }}>{idx + 1}</td>
-                    {isMerged ? (
-                      <td colSpan={quotation.columns.length} style={{ padding: "2px 4px" }}>
-                        <Input size="small" variant="borderless" defaultValue={String(item.cells?._merged_label || "")}
-                          placeholder="항목명 (예: Air Freight)"
-                          style={{ fontWeight: 500, textAlign: "center" }}
-                          onBlur={(e) => updateItem({ resource: "quotation_items", id: item.id, values: { cells: { ...item.cells, _merged_label: e.target.value } } })} />
-                      </td>
-                    ) : (
-                      quotation.columns.map((col) => {
-                        const isNum = col.type === "number" || col.type === "currency";
-                        return (
-                          <td key={col.key} style={{ padding: "1px 2px" }}>
-                            {isNum ? (
-                              <InputNumber size="small" variant="borderless" defaultValue={Number(item.cells?.[col.key]) || undefined}
-                                style={{ width: "100%", textAlign: "right" }}
-                                onBlur={(e) => {
-                                  const val = Number(e.target.value) || 0;
-                                  const newCells = { ...item.cells, [col.key]: val };
-                                  if (quotation.columns.some(c => c.key === "price") && quotation.columns.some(c => c.key === "qty")) {
-                                    newCells.amount = Math.round((Number(newCells.price) || 0) * (Number(newCells.qty) || 0) * 100) / 100;
-                                  }
-                                  updateItem({ resource: "quotation_items", id: item.id, values: { cells: newCells, selling_price: Number(newCells.amount) || 0 } }, { onSuccess: () => iq.refetch() });
-                                }} />
-                            ) : (
-                              <Input size="small" variant="borderless" defaultValue={String(item.cells?.[col.key] ?? "")}
-                                onBlur={(e) => updateItem({ resource: "quotation_items", id: item.id, values: { cells: { ...item.cells, [col.key]: e.target.value } } })} />
-                            )}
-                          </td>
-                        );
-                      })
+                          onClick={(e) => e.stopPropagation()}>✕</span>
+                      </Popconfirm>
+                    </div>
                     )}
-                    <td style={{ padding: "2px" }}>
-                      <DeleteOutlined style={{ color: "#ff4d4f", cursor: "pointer", fontSize: 10 }}
-                        onClick={() => deleteItem({ resource: "quotation_items", id: item.id }, { onSuccess: () => iq.refetch() })} />
-                    </td>
-                  </tr>
+                    {/* 리사이즈 핸들 */}
+                    <div
+                      style={{ position: "absolute", top: 0, right: 0, width: 4, height: "100%", cursor: "col-resize", zIndex: 2 }}
+                      onMouseDown={(e) => {
+                        e.preventDefault(); e.stopPropagation();
+                        setResizingCol(ci);
+                        resizeStartX.current = e.clientX;
+                        resizeStartW.current = col.width || 100;
+                        const onMove = (ev: MouseEvent) => {
+                          const diff = ev.clientX - resizeStartX.current;
+                          const newW = Math.max(50, resizeStartW.current + diff);
+                          const table = (e.target as HTMLElement).closest("table");
+                          const cols = table?.querySelectorAll("colgroup col");
+                          if (cols && cols[ci + 1]) (cols[ci + 1] as HTMLElement).style.width = newW + "px";
+                        };
+                        const onUp = (ev: MouseEvent) => {
+                          document.removeEventListener("mousemove", onMove);
+                          document.removeEventListener("mouseup", onUp);
+                          const diff = ev.clientX - resizeStartX.current;
+                          const newW = Math.max(50, resizeStartW.current + diff);
+                          const arr = [...quotation.columns]; arr[ci] = { ...arr[ci], width: newW };
+                          editQ({ columns: arr });
+                          setResizingCol(null);
+                        };
+                        document.addEventListener("mousemove", onMove);
+                        document.addEventListener("mouseup", onUp);
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = "#1890ff")}
+                      onMouseLeave={(e) => { if (resizingCol !== ci) e.currentTarget.style.background = "transparent"; }}
+                    />
+                    <div style={{ fontSize: 8, color: "#ccc", marginBottom: 1, cursor: "grab" }}>⠿</div>
+                    {editingColIdx === ci ? (
+                      <Input size="small" autoFocus defaultValue={col.label}
+                        style={{ width: "100%", textAlign: "center", fontSize: 11, fontWeight: 600 }}
+                        onBlur={(e) => {
+                          const arr = [...quotation.columns]; arr[ci] = { ...arr[ci], label: e.target.value || col.label };
+                          editQ({ columns: arr });
+                          setEditingColIdx(null);
+                        }}
+                        onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") setEditingColIdx(null); }}
+                      />
+                    ) : (
+                      <span style={{ cursor: "text", borderBottom: "1px dashed #bbb", padding: "1px 4px", fontWeight: 600 }}
+                        onClick={() => setEditingColIdx(ci)} title="클릭하여 이름 변경">
+                        {col.label}
+                      </span>
+                    )}
+                  </th>
                 );
               })}
-            </tbody>
-            <tfoot>
-              <tr style={{ borderTop: "2px solid #1890ff", background: "#f0f7ff" }}>
-                <td colSpan={quotation.columns.length + 2} style={{ padding: "6px 12px" }}>
-                  <Space>
-                    <Button size="small" icon={<PlusOutlined />}
-                      onClick={() => createItem({ resource: "quotation_items",
-                        values: { quotation_id: id, sort_order: items.length, cells: {}, cost_price: 0, cost_currency: "CNY", selling_price: 0, margin_percent: 0, margin_amount: 0, extra_costs: [] },
-                      }, { onSuccess: () => iq.refetch() })}>행 추가</Button>
-                    <Button size="small" type="dashed" icon={<PlusOutlined />}
-                      onClick={() => createItem({ resource: "quotation_items",
-                        values: { quotation_id: id, sort_order: items.length, cells: { _merged: "true", _merged_label: "", amount: 0 }, cost_price: 0, cost_currency: "CNY", selling_price: 0, margin_percent: 0, margin_amount: 0, extra_costs: [] },
-                      }, { onSuccess: () => iq.refetch() })}>병합 행</Button>
-                  </Space>
-                </td>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
-
-        {/* ===== 우측: 내부 마진 계산 ===== */}
-        <div style={{ border: "2px solid #f15f23", borderLeft: "none", borderRadius: "0 8px 8px 0", background: "#fff", flexShrink: 0 }}>
-          <div style={{ background: "#fff7ed", padding: "6px 12px", borderBottom: "1px solid #f15f23" }}>
-            <Text strong style={{ color: "#f15f23", fontSize: 11 }}>🔒 내부 마진 계산</Text>
-          </div>
-          <table style={{ borderCollapse: "collapse", fontSize: 12 }}>
-            <thead>
-              <tr>
-                <th style={{ padding: "6px", background: "#fff7ed", minWidth: 75, textAlign: "right", fontSize: 10 }}>원가</th>
-                <th style={{ padding: "6px", background: "#fff7ed", width: 50, fontSize: 10 }}>통화</th>
-                <th style={{ padding: "6px", background: "#fff7ed", minWidth: 70, textAlign: "right", fontSize: 10 }}>원가(USD)</th>
-                <th style={{ padding: "6px", background: "#fff7ed", minWidth: 55, textAlign: "right", fontSize: 10 }}>마진%</th>
-                <th style={{ padding: "6px", background: "#fff7ed", minWidth: 75, textAlign: "right", fontSize: 10 }}>판매가</th>
-                <th style={{ padding: "6px", background: "#fff7ed", minWidth: 75, textAlign: "right", fontSize: 10 }}>마진액</th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((item) => {
-                const costUSD = convertCurrency(item.cost_price || 0, item.cost_currency, rates);
-                const isMerged = String(item.cells?._merged) === "true";
-
-                if (isMerged) {
-                  return (
-                    <tr key={item.id} style={{ borderBottom: "1px solid #f0f0f0", background: "#fafafa" }}>
-                      <td colSpan={4} style={{ padding: "4px 6px", color: "#999", fontSize: 10, textAlign: "center" }}>—</td>
-                      <td style={{ padding: "2px 4px", textAlign: "right" }}>
-                        <InputNumber size="small" defaultValue={item.selling_price || undefined} style={{ width: 70 }}
-                          onBlur={(e) => {
-                            const amount = Number(e.target.value) || 0;
-                            updateItem({ resource: "quotation_items", id: item.id,
-                              values: { selling_price: amount, cells: { ...item.cells, amount } } },
-                              { onSuccess: () => iq.refetch() });
-                          }} />
-                      </td>
-                      <td style={{ padding: "4px 6px", color: "#999" }}>—</td>
-                    </tr>
-                  );
-                }
-
+              {/* 좌측: 칼럼 추가 */}
+              <th style={{ padding: "4px", background: "#f0f7ff" }}>
+                <Button type="text" size="small" icon={<PlusOutlined />}
+                  style={{ color: "#1890ff", fontSize: 12 }} title="칼럼 추가"
+                  onClick={() => {
+                    const key = "col_" + Date.now().toString(36);
+                    const newCols = [...quotation.columns, { key, label: "새 칼럼", type: "text" as const, width: 100 }];
+                    editQ({ columns: newCols });
+                    setEditingColIdx(newCols.length - 1);
+                  }} />
+              </th>
+              <th style={{ background: "#f0f7ff", fontSize: 8, color: "#aaa" }} title="고객 표시">👁</th>
+              <th style={{ background: "#f0f7ff" }} />
+              {/* 우측 헤더 — 칼럼 레벨 통화 선택 */}
+              <th className="qt-r-border" style={{ padding: "4px", background: "#fff7ed", textAlign: "center", fontSize: 10 }}>
+                <div>구매단가</div>
+                <Select size="small" value={rates._cost_cur || "CNY"} style={{ width: 70, marginTop: 2 }}
+                  onChange={(v) => editQ({ exchange_rates: { ...rates, _cost_cur: v } as Record<string, number> })}
+                  options={[{ value: "CNY", label: "위안(¥)" }, { value: "USD", label: "달러($)" }, { value: "KRW", label: "원화(₩)" }]} />
+              </th>
+              <th style={{ padding: "4px", background: "#fff7ed", textAlign: "center", fontSize: 10 }}>
+                <div>환산</div>
+                <Select size="small" value={rates._conv_cur || "USD"} style={{ width: 70, marginTop: 2 }}
+                  onChange={(v) => editQ({ exchange_rates: { ...rates, _conv_cur: v } as Record<string, number> })}
+                  options={[{ value: "CNY", label: "위안(¥)" }, { value: "USD", label: "달러($)" }, { value: "KRW", label: "원화(₩)" }]} />
+              </th>
+              {/* 우측 추가 칼럼 헤더 — 좌측과 동일 UX */}
+              {costCols.map((cc, ci) => {
+                const isDragging = dragCostCol === ci;
+                const isOver = dragOverCostCol === ci && dragCostCol !== ci;
+                const dropLeft = isOver && dragCostCol !== null && dragCostCol > ci;
+                const dropRight = isOver && dragCostCol !== null && dragCostCol < ci;
+                // colgroup 인덱스: No(1) + quotation.columns + 3(+,👁,🗑) + 2(구매단가,환산) + ci
+                const colgroupIdx = quotation.columns.length + 6 + ci;
                 return (
-                  <tr key={item.id} style={{ borderBottom: "1px solid #f0f0f0" }}>
-                    <td style={{ padding: "2px 4px", background: "#fffbf5", textAlign: "right" }}>
-                      <InputNumber size="small" defaultValue={item.cost_price || undefined} style={{ width: 70 }}
-                        onBlur={(e) => onCostChange(item.id, "cost_price", Number(e.target.value) || 0)} />
-                    </td>
-                    <td style={{ padding: "2px", background: "#fffbf5" }}>
-                      <Select size="small" value={item.cost_currency} style={{ width: 50 }}
-                        onChange={(v) => onCostChange(item.id, "cost_currency", v)}
-                        options={[{ value: "CNY" }, { value: "KRW" }]} />
-                    </td>
-                    <td style={{ padding: "4px 6px", background: "#fffbf5", textAlign: "right", color: "#999", fontSize: 10 }}>
-                      {formatCurrency(costUSD, "USD")}
-                    </td>
-                    <td style={{ padding: "2px 4px", background: "#fffbf5", textAlign: "right" }}>
-                      <InputNumber size="small" defaultValue={item.margin_percent || undefined} style={{ width: 50 }}
-                        onBlur={(e) => onCostChange(item.id, "margin_percent", Number(e.target.value) || 0)} />
-                    </td>
-                    <td style={{ padding: "2px 4px", background: "#fffbf5", textAlign: "right" }}>
-                      <InputNumber size="small" defaultValue={item.selling_price || undefined} style={{ width: 70 }}
-                        onBlur={(e) => onCostChange(item.id, "selling_price", Number(e.target.value) || 0)} />
-                    </td>
-                    <td style={{ padding: "4px 6px", background: "#fffbf5", textAlign: "right", fontWeight: 600,
-                      color: (item.margin_amount || 0) >= 0 ? "#52c41a" : "#ff4d4f" }}>
-                      {formatCurrency(item.margin_amount || 0, quotation.currency)}
-                    </td>
-                  </tr>
+                  <th key={cc.key}
+                    draggable={editingCostColIdx !== ci && resizingCostCol === null}
+                    onDragStart={(e) => {
+                      if (resizingCostCol !== null) { e.preventDefault(); return; }
+                      setDragCostCol(ci);
+                      e.dataTransfer.effectAllowed = "move";
+                      const el = e.currentTarget;
+                      e.dataTransfer.setDragImage(el, el.offsetWidth / 2, el.offsetHeight / 2);
+                    }}
+                    onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; setDragOverCostCol(ci); }}
+                    onDragLeave={() => { if (dragOverCostCol === ci) setDragOverCostCol(null); }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      if (dragCostCol !== null && dragCostCol !== ci) {
+                        const arr = [...costCols];
+                        const [moved] = arr.splice(dragCostCol, 1);
+                        arr.splice(ci, 0, moved);
+                        editQ({ cost_columns: arr });
+                      }
+                      setDragCostCol(null); setDragOverCostCol(null);
+                    }}
+                    onDragEnd={() => { setDragCostCol(null); setDragOverCostCol(null); }}
+                    style={{
+                      padding: "4px 2px", background: isDragging ? "#fed7aa" : "#fff7ed",
+                      textAlign: "center", fontSize: 10,
+                      opacity: isDragging ? 0.5 : 1,
+                      cursor: editingCostColIdx === ci ? "text" : "grab",
+                      transition: "all 0.15s ease",
+                      borderLeft: dropLeft ? "3px solid #f15f23" : undefined,
+                      borderRight: dropRight ? "3px solid #f15f23" : undefined,
+                      position: "relative", overflow: "hidden",
+                    }}
+                  >
+                    {/* 삭제 버튼 */}
+                    <div style={{ position: "absolute", top: 1, right: 8, zIndex: 3 }}>
+                      <Popconfirm
+                        title={`"${cc.label}" 칼럼을 삭제할까요?`}
+                        okText="삭제" cancelText="취소" okButtonProps={{ danger: true, size: "small" }} cancelButtonProps={{ size: "small" }}
+                        onConfirm={() => editQ({ cost_columns: costCols.filter((_, i) => i !== ci) })}
+                      >
+                        <span style={{ cursor: "pointer", color: "#ff4d4f", fontSize: 8, opacity: 0.4, transition: "opacity 0.15s" }}
+                          onMouseEnter={(e) => (e.currentTarget.style.opacity = "1")}
+                          onMouseLeave={(e) => (e.currentTarget.style.opacity = "0.4")}
+                          onClick={(e) => e.stopPropagation()}>✕</span>
+                      </Popconfirm>
+                    </div>
+                    {/* 리사이즈 핸들 */}
+                    <div
+                      style={{ position: "absolute", top: 0, right: 0, width: 4, height: "100%", cursor: "col-resize", zIndex: 2 }}
+                      onMouseDown={(e) => {
+                        e.preventDefault(); e.stopPropagation();
+                        setResizingCostCol(ci);
+                        resizeStartX.current = e.clientX;
+                        resizeStartW.current = cc.width || 80;
+                        const onMove = (ev: MouseEvent) => {
+                          const diff = ev.clientX - resizeStartX.current;
+                          const newW = Math.max(50, resizeStartW.current + diff);
+                          const table = (e.target as HTMLElement).closest("table");
+                          const cols = table?.querySelectorAll("colgroup col");
+                          if (cols && cols[colgroupIdx]) (cols[colgroupIdx] as HTMLElement).style.width = newW + "px";
+                        };
+                        const onUp = (ev: MouseEvent) => {
+                          document.removeEventListener("mousemove", onMove);
+                          document.removeEventListener("mouseup", onUp);
+                          const diff = ev.clientX - resizeStartX.current;
+                          const newW = Math.max(50, resizeStartW.current + diff);
+                          const arr = [...costCols]; arr[ci] = { ...arr[ci], width: newW };
+                          editQ({ cost_columns: arr });
+                          setResizingCostCol(null);
+                        };
+                        document.addEventListener("mousemove", onMove);
+                        document.addEventListener("mouseup", onUp);
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = "#f15f23")}
+                      onMouseLeave={(e) => { if (resizingCostCol !== ci) e.currentTarget.style.background = "transparent"; }}
+                    />
+                    <div style={{ fontSize: 8, color: "#ccc", marginBottom: 1, cursor: "grab" }}>⠿</div>
+                    {editingCostColIdx === ci ? (
+                      <Input size="small" autoFocus defaultValue={cc.label}
+                        style={{ width: "100%", textAlign: "center", fontSize: 11, fontWeight: 600 }}
+                        onBlur={(e) => {
+                          const arr = [...costCols]; arr[ci] = { ...arr[ci], label: e.target.value || cc.label };
+                          editQ({ cost_columns: arr });
+                          setEditingCostColIdx(null);
+                        }}
+                        onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") setEditingCostColIdx(null); }}
+                      />
+                    ) : (
+                      <span style={{ cursor: "text", borderBottom: "1px dashed #bbb", padding: "1px 4px", fontWeight: 600 }}
+                        onClick={() => setEditingCostColIdx(ci)} title="클릭하여 이름 변경">
+                        {cc.label}
+                      </span>
+                    )}
+                  </th>
                 );
               })}
-            </tbody>
-            <tfoot>
-              <tr style={{ borderTop: "2px solid #f15f23", background: "#fff7ed" }}>
-                <td colSpan={2} style={{ padding: "6px", fontSize: 10, textAlign: "right" }}>총원가 {formatCurrency(summary.totalCost, "USD")}</td>
-                <td colSpan={2} style={{ padding: "6px", fontSize: 10, textAlign: "right" }}>부대 {formatCurrency(summary.totalExtraCosts, "USD")}</td>
-                <td colSpan={2} style={{ padding: "6px", fontWeight: 700, textAlign: "right",
-                  color: summary.totalMargin >= 0 ? "#52c41a" : "#ff4d4f" }}>
-                  마진 {formatCurrency(summary.totalMargin, quotation.currency)} ({summary.marginPercent}%)
+              <th style={{ padding: "6px", background: "#fff7ed", textAlign: "right", fontSize: 10 }}>원가합(₩)</th>
+              <th style={{ padding: "6px", background: "#fff7ed", textAlign: "right", fontSize: 10 }}>마진율</th>
+              {/* 우측 칼럼 추가 버튼 */}
+              <th style={{ padding: "4px", background: "#fff7ed" }}>
+                <Button type="text" size="small" icon={<PlusOutlined />}
+                  style={{ color: "#f15f23", fontSize: 12 }} title="마진 칼럼 추가"
+                  onClick={() => {
+                    const key = "rc_" + Date.now().toString(36);
+                    editQ({ cost_columns: [...costCols, { key, label: "기타", type: "number" as const, width: 80 }] });
+                  }} />
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((item, idx) => {
+              const isMerged = String(item.cells?._merged) === "true";
+              const isVisible = String(item.cells?._visible) !== "false";
+              const colCostCur = String(rates._cost_cur || "CNY");
+              const colConvCur = String(rates._conv_cur || "USD");
+              const costConverted = convertTo(item.cost_price || 0, colCostCur, colConvCur);
+              const baseCostKRW = convertTo(item.cost_price || 0, colCostCur, "KRW");
+              const extraCostKRW = costCols.reduce((s, cc) => s + (Number(item.cells?.[cc.key]) || 0), 0);
+              const costKRW = baseCostKRW + extraCostKRW;
+              const sellingKRW = convertTo(Number(item.cells?.amount) || 0, quotation.currency, "KRW");
+              const marginRate = costKRW > 0 ? ((sellingKRW - costKRW) / costKRW * 100) : 0;
+              const curSymbol = (c: string) => c === "KRW" ? "₩" : c === "CNY" ? "¥" : "$";
+              return (
+                <tr key={item.id} style={{ borderBottom: "1px solid #f0f0f0" }}>
+                  {/* 좌측 데이터 — 숨김 행은 빈칸 + 회색 배경 */}
+                  <td style={{ padding: "4px 6px", textAlign: "center", color: "#999", fontSize: 11, background: isVisible ? undefined : "#f9f9f9" }}>
+                    {isVisible ? idx + 1 : <span style={{ color: "#ddd" }}>{idx + 1}</span>}
+                  </td>
+                  {!isVisible ? (
+                    <td colSpan={quotation.columns.length} style={{ background: "#f9f9f9", padding: "4px 8px", color: "#ccc", fontSize: 10, textAlign: "center" }}>
+                      고객 미표시
+                    </td>
+                  ) : isMerged ? (
+                    <td colSpan={quotation.columns.length} style={{ padding: "2px 4px" }}>
+                      <Input size="small" variant="borderless" value={String(item.cells?._merged_label || "")}
+                        placeholder="항목명 (예: Air Freight)"
+                        style={{ fontWeight: 500, textAlign: "center" }}
+                        onChange={(e) => editItem(item.id, { cells: { ...item.cells, _merged_label: e.target.value } })} />
+                    </td>
+                  ) : (
+                    quotation.columns.map((col) => {
+                      const isNum = col.type === "number" || col.type === "currency";
+                      const isAmount = col.key === "amount";
+                      const isPrice = col.key === "price" || col.type === "currency";
+                      const curSym = quotation.currency === "USD" ? "$" : quotation.currency === "EUR" ? "€" : quotation.currency === "KRW" ? "₩" : quotation.currency === "CNY" ? "¥" : quotation.currency;
+                      return (
+                        <td key={col.key} style={{ padding: "1px 2px" }}>
+                          {isAmount ? (
+                            <span style={{ display: "block", textAlign: "right", padding: "0 8px", fontWeight: 600, fontSize: 12 }}>
+                              {formatCurrency(Number(item.cells?.[col.key]) || 0, quotation.currency)}
+                            </span>
+                          ) : isNum ? (
+                            <InputNumber
+                              size="small" variant="borderless" value={Number(item.cells?.[col.key]) || undefined}
+                              style={{ width: "100%", textAlign: "right" }}
+                              prefix={isPrice ? curSym : undefined}
+                              onChange={(val) => {
+                                const v = Number(val) || 0;
+                                const newCells = { ...item.cells, [col.key]: v };
+                                if (quotation.columns.some(c => c.key === "price") && quotation.columns.some(c => c.key === "qty")) {
+                                  newCells.amount = Math.round((Number(newCells.price) || 0) * (Number(newCells.qty) || 0) * 100) / 100;
+                                }
+                                editItem(item.id, { cells: newCells, selling_price: Number(newCells.amount) || 0 });
+                              }} />
+                          ) : (
+                            <Input size="small" variant="borderless" value={String(item.cells?.[col.key] ?? "")}
+                              onChange={(e) => editItem(item.id, { cells: { ...item.cells, [col.key]: e.target.value } })} />
+                          )}
+                        </td>
+                      );
+                    })
+                  )}
+                  <td style={{ background: isVisible ? undefined : "#f9f9f9" }} />
+                  {/* 가시성 토글 */}
+                  <td style={{ padding: "2px", textAlign: "center" }}>
+                    <span style={{ cursor: "pointer", fontSize: 11, color: isVisible ? "#1890ff" : "#ccc" }}
+                      onClick={() => toggleVisibility(item.id)} title={isVisible ? "고객에게 표시됨" : "고객에게 숨김"}>
+                      {isVisible ? <EyeOutlined /> : <EyeInvisibleOutlined />}
+                    </span>
+                  </td>
+                  <td style={{ padding: "2px" }}>
+                    <DeleteOutlined style={{ color: "#ff4d4f", cursor: "pointer", fontSize: 10 }}
+                      onClick={() => removeLocalItem(item.id)} />
+                  </td>
+                  {/* 우측: 구매단가, 환산, 원가합(₩), 마진율 — 항상 editable */}
+                  <td className="qt-r-border" style={{ padding: "2px 4px", background: "#fffbf5", textAlign: "right" }}>
+                    <InputNumber
+                      size="small" value={item.cost_price || undefined} style={{ width: "100%" }}
+                      prefix={curSymbol(colCostCur)}
+                      onChange={(v) => onCostChange(item.id, "cost_price", Number(v) || 0)} />
+                  </td>
+                  <td style={{ padding: "4px 6px", background: "#fffbf5", textAlign: "right", fontSize: 11 }}>
+                    {costConverted ? `${curSymbol(colConvCur)}${new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(costConverted)}` : "—"}
+                  </td>
+                  {/* 추가 마진 칼럼 입력 (₩) */}
+                  {costCols.map((cc) => (
+                    <td key={cc.key} style={{ padding: "2px 4px", background: "#fffbf5", textAlign: "right" }}>
+                      <InputNumber size="small" variant="borderless" value={Number(item.cells?.[cc.key]) || undefined}
+                        style={{ width: "100%", textAlign: "right" }}
+                        prefix="₩"
+                        onChange={(v) => editItem(item.id, { cells: { ...item.cells, [cc.key]: Number(v) || 0 } })} />
+                    </td>
+                  ))}
+                  <td style={{ padding: "4px 6px", background: "#fffbf5", textAlign: "right", fontWeight: 600, fontSize: 11 }}>
+                    {costKRW ? `₩${new Intl.NumberFormat("ko-KR").format(Math.round(costKRW))}` : "—"}
+                  </td>
+                  <td style={{ padding: "2px 4px", background: "#fffbf5", textAlign: "right" }}>
+                    <InputNumber size="small" variant="borderless" value={costKRW > 0 ? Number(marginRate.toFixed(1)) : undefined}
+                      style={{ width: "100%", textAlign: "right", color: marginRate >= 0 ? "#52c41a" : "#ff4d4f", fontWeight: 600 }}
+                      suffix="%"
+                      disabled={costKRW <= 0}
+                      onChange={(v) => {
+                        if (costKRW <= 0) return;
+                        const newMarginRate = Number(v) || 0;
+                        // 역산: 새 sellingKRW → new amount (quotation currency) → new price
+                        const newSellingKRW = costKRW * (1 + newMarginRate / 100);
+                        const newAmount = convertTo(newSellingKRW, "KRW", quotation.currency);
+                        const qty = Number(item.cells?.qty) || 1;
+                        const newPrice = qty > 0 ? Math.round((newAmount / qty) * 100) / 100 : 0;
+                        const newCells = { ...item.cells, price: newPrice, amount: Math.round(newAmount * 100) / 100 };
+                        editItem(item.id, { cells: newCells, selling_price: Math.round(newAmount * 100) / 100, margin_percent: newMarginRate });
+                      }} />
+                  </td>
+                  <td style={{ background: "#fffbf5" }} />
+                </tr>
+              );
+            })}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td style={{ padding: "6px 8px", fontWeight: 700, fontSize: 11, background: "#f0f7ff", borderTop: "2px solid #1890ff" }}>TTL</td>
+              {quotation.columns.map((col) => (
+                <td key={col.key} style={{ padding: "4px 8px", textAlign: "right", fontWeight: 700, fontSize: 12, background: "#f0f7ff", borderTop: "2px solid #1890ff" }}>
+                  {col.key === "amount" ? formatCurrency(totalAmount, quotation.currency) : ""}
                 </td>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
+              ))}
+              <td style={{ background: "#f0f7ff", borderTop: "2px solid #1890ff" }} />
+              <td style={{ background: "#f0f7ff", borderTop: "2px solid #1890ff" }} />
+              <td style={{ background: "#f0f7ff", borderTop: "2px solid #1890ff" }} />
+              {(() => {
+                const colCostCur = String(rates._cost_cur || "CNY");
+                const totalBaseCostKRW = items.reduce((s, i) => s + convertTo(i.cost_price || 0, colCostCur, "KRW"), 0);
+                const totalExtraCostKRW = items.reduce((s, i) => s + costCols.reduce((ss, cc) => ss + (Number(i.cells?.[cc.key]) || 0), 0), 0);
+                const globalCostKRW = (quotation.global_costs || []).reduce((s: number, c: ExtraCost) => s + convertTo(c.amount, c.currency, "KRW"), 0);
+                const grandCostKRW = totalBaseCostKRW + totalExtraCostKRW + globalCostKRW;
+                const totalSellingKRW = convertTo(totalAmount, quotation.currency, "KRW");
+                const totalMarginRate = grandCostKRW > 0 ? ((totalSellingKRW - grandCostKRW) / grandCostKRW * 100) : 0;
+                return (
+                  <>
+                    <td className="qt-r-border" colSpan={2 + costCols.length} style={{ padding: "6px", fontSize: 10, textAlign: "right", background: "#fff7ed", borderTop: "2px solid #f15f23" }}>
+                      총 구매원가
+                    </td>
+                    <td style={{ padding: "6px", fontSize: 11, fontWeight: 700, textAlign: "right", background: "#fff7ed", borderTop: "2px solid #f15f23" }}>
+                      ₩{new Intl.NumberFormat("ko-KR").format(Math.round(grandCostKRW))}
+                    </td>
+                    <td style={{ padding: "6px", fontWeight: 700, textAlign: "right", background: "#fff7ed", borderTop: "2px solid #f15f23",
+                      color: totalMarginRate >= 0 ? "#52c41a" : "#ff4d4f" }}>
+                      {totalMarginRate.toFixed(1)}%
+                    </td>
+                    <td style={{ background: "#fff7ed", borderTop: "2px solid #f15f23" }} />
+                  </>
+                );
+              })()}
+            </tr>
+          </tfoot>
+        </table>
       </div>
 
       {/* Global costs */}
@@ -677,25 +1016,23 @@ export default function QuotationEditorPage() {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
           <Text strong style={{ fontSize: 12 }}>전체 부대비용</Text>
           <Button size="small" icon={<PlusOutlined />}
-            onClick={() => updateQuotation({ resource: "quotations", id,
-              values: { global_costs: [...(quotation.global_costs || []), { name: "", amount: 0, currency: "USD" }] } },
-              { onSuccess: () => qq.refetch() })}>추가</Button>
+            onClick={() => editQ({ global_costs: [...(quotation.global_costs || []), { name: "", amount: 0, currency: "USD" }] })}>추가</Button>
         </div>
         {(quotation.global_costs || []).map((cost: ExtraCost, i: number) => (
           <div key={i} style={{ display: "flex", gap: 4, marginBottom: 4, alignItems: "center" }}>
             <Input size="small" value={cost.name} placeholder="항목명" style={{ width: 120 }}
               onChange={(e) => { const c = [...(quotation.global_costs || [])]; c[i] = { ...c[i], name: e.target.value };
-                updateQuotation({ resource: "quotations", id, values: { global_costs: c } }); }} />
+                editQ({ global_costs: c }); }} />
             <InputNumber size="small" value={cost.amount} style={{ width: 80 }}
               onChange={(v) => { const c = [...(quotation.global_costs || [])]; c[i] = { ...c[i], amount: v || 0 };
-                updateQuotation({ resource: "quotations", id, values: { global_costs: c } }); }} />
+                editQ({ global_costs: c }); }} />
             <Select size="small" value={cost.currency} style={{ width: 60 }}
               onChange={(v) => { const c = [...(quotation.global_costs || [])]; c[i] = { ...c[i], currency: v };
-                updateQuotation({ resource: "quotations", id, values: { global_costs: c } }); }}
+                editQ({ global_costs: c }); }}
               options={[{ value: "USD" }, { value: "CNY" }, { value: "KRW" }]} />
             <DeleteOutlined style={{ color: "#ff4d4f", cursor: "pointer" }}
               onClick={() => { const c = (quotation.global_costs || []).filter((_: ExtraCost, j: number) => j !== i);
-                updateQuotation({ resource: "quotations", id, values: { global_costs: c } }, { onSuccess: () => qq.refetch() }); }} />
+                editQ({ global_costs: c }); }} />
           </div>
         ))}
       </div>
@@ -721,12 +1058,13 @@ export default function QuotationEditorPage() {
           </Tag>
         </Space>
         <Space>
+          {isDirty && <Tag color="orange">미저장</Tag>}
           <Button size="small" icon={<FilePdfOutlined />} onClick={() => setShowPDF(true)}>PDF</Button>
+          <Button size="small" onClick={() => flushToDB()} loading={saving} disabled={!isDirty}>
+            저장
+          </Button>
           <Button size="small" type="primary" icon={<CheckCircleOutlined />}
-            onClick={() => updateQuotation(
-              { resource: "quotations", id, values: { status: quotation.status === "final" ? "draft" : "final" } },
-              { onSuccess: () => qq.refetch() },
-            )}>
+            onClick={() => flushToDB(quotation.status === "final" ? "draft" : "final")} loading={saving}>
             {quotation.status === "final" ? "Draft" : "완료"}
           </Button>
         </Space>
@@ -737,7 +1075,7 @@ export default function QuotationEditorPage() {
         { key: "calc", label: <><CalculatorOutlined /> 계산</>, children: tabCalc },
       ]} />
 
-      <QuotationPDF quotation={q} items={items} open={showPDF} onClose={() => setShowPDF(false)} />
+      <QuotationPDF quotation={quotation} items={visibleItems} open={showPDF} onClose={() => setShowPDF(false)} />
     </div>
   );
 }

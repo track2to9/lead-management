@@ -2,9 +2,10 @@
 
 import { useGetIdentity, useLogout } from "@refinedev/core";
 import { Layout, Menu, Button, Typography, Spin } from "antd";
-import { DashboardOutlined, PlusOutlined, SettingOutlined, LogoutOutlined, GlobalOutlined, FileTextOutlined } from "@ant-design/icons";
+import { DashboardOutlined, PlusOutlined, SettingOutlined, LogoutOutlined, GlobalOutlined, FileTextOutlined, UserOutlined } from "@ant-design/icons";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState } from "react";
 
 const { Sider, Header, Content } = Layout;
 const { Text } = Typography;
@@ -13,22 +14,26 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const { data: identity, isLoading } = useGetIdentity<{ name: string; email: string }>();
   const { mutate: logout } = useLogout();
   const pathname = usePathname();
+  const [collapsed, setCollapsed] = useState(false);
 
   if (isLoading) return <div style={{ height: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}><Spin size="large" /></div>;
 
   return (
     <Layout style={{ minHeight: "100vh" }}>
-      <Sider width={200} collapsible style={{ background: "#fff", borderRight: "1px solid #f0f0f0" }} breakpoint="lg" collapsedWidth={60}>
-        <div style={{ padding: "16px 20px", borderBottom: "1px solid #f0f0f0" }}>
-          <Link href="/dashboard" style={{ fontWeight: 900, fontSize: 18, color: "#000" }}>
-            Trade<span style={{ color: "#f15f23" }}>Voy</span>
+      <Sider width={200} collapsible collapsed={collapsed} onCollapse={setCollapsed}
+        style={{ background: "#fff", borderRight: "1px solid #f0f0f0" }} breakpoint="lg" collapsedWidth={60}>
+        <div style={{ padding: collapsed ? "16px 0" : "16px 20px", borderBottom: "1px solid #f0f0f0", textAlign: collapsed ? "center" : "left" }}>
+          <Link href="/dashboard" style={{ fontWeight: 900, fontSize: collapsed ? 14 : 18, color: "#000" }}>
+            {collapsed ? <span style={{ color: "#f15f23" }}>TV</span> : <>Trade<span style={{ color: "#f15f23" }}>Voy</span></>}
           </Link>
         </div>
 
-        <div style={{ padding: "12px 20px", borderBottom: "1px solid #f0f0f0" }}>
-          <Text type="secondary" style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 1 }}>Workspace</Text>
-          <div style={{ fontWeight: 700, fontSize: 14, marginTop: 2 }}>{identity?.name || "..."}</div>
-        </div>
+        {!collapsed && (
+          <div style={{ padding: "12px 20px", borderBottom: "1px solid #f0f0f0" }}>
+            <Text type="secondary" style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 1 }}>Workspace</Text>
+            <div style={{ fontWeight: 700, fontSize: 14, marginTop: 2 }}>{identity?.name || "..."}</div>
+          </div>
+        )}
 
         <Menu
           mode="inline"
@@ -44,13 +49,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           ]}
         />
 
-        <div style={{ position: "absolute", bottom: 0, width: "100%", borderTop: "1px solid #f0f0f0", padding: "12px 20px" }}>
-          <Text type="secondary" style={{ fontSize: 12, display: "block", marginBottom: 8, overflow: "hidden", textOverflow: "ellipsis" }}>
-            {identity?.email}
-          </Text>
-          <Button type="text" icon={<LogoutOutlined />} size="small" onClick={() => logout()} style={{ color: "#999" }}>
-            로그아웃
-          </Button>
+        <div style={{ position: "absolute", bottom: 0, width: "100%", borderTop: "1px solid #f0f0f0", padding: collapsed ? "12px 0" : "12px 20px", textAlign: "center" }}>
+          {collapsed ? (
+            <Button type="text" icon={<UserOutlined />} size="small" onClick={() => logout()} style={{ color: "#999" }} title={identity?.email} />
+          ) : (
+            <>
+              <Text type="secondary" style={{ fontSize: 12, display: "block", marginBottom: 8, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {identity?.email}
+              </Text>
+              <Button type="text" icon={<LogoutOutlined />} size="small" onClick={() => logout()} style={{ color: "#999" }}>
+                로그아웃
+              </Button>
+            </>
+          )}
         </div>
       </Sider>
 

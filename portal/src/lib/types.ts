@@ -164,6 +164,7 @@ export interface Quotation {
   client_name?: string;
   status: "draft" | "final";
   columns: QuotationColumn[];
+  cost_columns?: QuotationColumn[];  // 우측 마진 계산용 추가 칼럼
   currency: string;
   exchange_rates: Record<string, number>;
   margin_mode: "forward" | "reverse";

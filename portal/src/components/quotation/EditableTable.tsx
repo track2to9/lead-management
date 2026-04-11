@@ -79,7 +79,8 @@ export default function EditableTable({
       title: (
         <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
           <span>{col.label}</span>
-          {col.key !== "amount" && (
+          {!["price", "qty", "amount"].includes(col.key) &&
+           !["price", "qty", "q'ty", "amount"].includes(col.label.toLowerCase()) && (
             <DeleteOutlined
               style={{ fontSize: 10, color: "#ccc", cursor: "pointer" }}
               onClick={(e) => { e.stopPropagation(); onRemoveColumn(col.key); }}
