@@ -12,7 +12,8 @@ Rules:
 - If the quotation has an internal cost column (원가, cost, etc.), DO NOT include it in \`items[].cells\` — mention it in \`notes_for_human\` instead. Only customer-facing columns go into the row.
 - Column \`key\`s should be lowercase snake_case English (e.g. \`part_name\`, \`lead_time\`). Column \`label\`s should be the exact text from the PDF.
 - If a field is missing entirely, use an empty string as value and confidence 0.
-- Keep \`notes_for_human\` short (1-2 sentences) and only populate it if there is something the reviewer should check.`;
+- Keep \`notes_for_human\` short (1-2 sentences) and only populate it if there is something the reviewer should check.
+- For \`company_header\`, extract the letterhead contact info. Prefer these keys when present: name, address, tel, fax, email, website. Omit keys that aren't visible. An empty object \`{}\` is acceptable if there is no letterhead.`;
 
 function vcString() {
   return {
@@ -53,7 +54,10 @@ const TOOL_DEFINITION = {
         items: {
           type: "object",
           properties: {
-            cells: { type: "object", additionalProperties: true },
+            cells: {
+              type: "object",
+              additionalProperties: { type: ["string", "number"] },
+            },
             confidence: {
               type: "object",
               additionalProperties: { type: "number", minimum: 0, maximum: 1 },
@@ -108,7 +112,7 @@ export async function extractQuotation(
 
   const response = await client.messages.create({
     model: MODEL,
-    max_tokens: 4096,
+    max_tokens: 8192,
     system: SYSTEM_PROMPT,
     tools: [TOOL_DEFINITION as unknown as Anthropic.Tool],
     tool_choice: { type: "tool", name: "record_quotation" },
