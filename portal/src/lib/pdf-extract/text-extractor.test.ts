@@ -16,9 +16,10 @@ describe("extractText", () => {
     expect(snapshot.pages[0].text).toContain("ACME GmbH");
     expect(snapshot.pages[0].text).toContain("2024-03-12");
     expect(typeof snapshot.extracted_at).toBe("string");
+    expect(snapshot.pages[0].tables).toEqual([]);
   });
 
-  it("returns empty pages when PDF bytes are empty", async () => {
+  it("throws when PDF bytes are empty", async () => {
     await expect(extractText(new Uint8Array(0))).rejects.toThrow();
   });
 });

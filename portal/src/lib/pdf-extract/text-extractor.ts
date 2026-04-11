@@ -15,7 +15,8 @@ export async function extractText(pdfBytes: Uint8Array): Promise<ExtractedSnapsh
 
   const pdf = await getDocumentProxy(pdfBytes);
   const result = await unpdfExtractText(pdf, { mergePages: false });
-  // unpdf returns { totalPages, text: string[] } when mergePages: false
+  // unpdf returns { totalPages, text: string[] } when mergePages: false.
+  // Defensive guard against version drift where older unpdf returned a joined string.
   const pageTexts = Array.isArray(result.text) ? result.text : [result.text];
 
   const pages: ExtractedPage[] = pageTexts.map((text, idx) => ({
