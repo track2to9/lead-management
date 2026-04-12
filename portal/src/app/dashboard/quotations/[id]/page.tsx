@@ -2,17 +2,19 @@
 
 import { useOne, useList, useUpdate, useCreate, useDelete } from "@refinedev/core";
 import { useParams } from "next/navigation";
-import { Input, InputNumber, Select, Button, Space, Typography, Breadcrumb, Tag, Spin, Tabs, DatePicker, Popconfirm } from "antd";
-import { HomeOutlined, CheckCircleOutlined, FilePdfOutlined, PlusOutlined, DeleteOutlined, CalculatorOutlined, FileTextOutlined, MinusCircleOutlined } from "@ant-design/icons";
+import { Input, InputNumber, Select, Button, Space, Typography, Breadcrumb, Tag, Spin, Tabs, DatePicker, Popconfirm, message } from "antd";
+import { HomeOutlined, CheckCircleOutlined, FilePdfOutlined, PlusOutlined, DeleteOutlined, CalculatorOutlined, FileTextOutlined, MinusCircleOutlined, CopyOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import Link from "next/link";
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, type CSSProperties } from "react";
 import { EyeOutlined, EyeInvisibleOutlined } from "@ant-design/icons";
 import type { Quotation, QuotationItem, QuotationColumn, ExtraCost } from "@/lib/types";
 import { calcForward, calcReverse, calcSummary, formatCurrency, convertCurrency } from "@/lib/quotation-calc";
 import { useRefExchangeRates } from "@/lib/use-exchange-rates";
 import QuotationPDF from "@/components/quotation/QuotationPDF";
 import ImageUploader from "@/components/quotation/ImageUploader";
+import VerifyBanner from "@/components/quotation/VerifyBanner";
+import { supabaseClient } from "@/lib/supabase-client";
 // ColumnManager removed — column controls now inline in table header
 
 const { Title, Text } = Typography;
@@ -93,6 +95,26 @@ export default function QuotationEditorPage() {
     editQ({ footer: { ...f, [key]: value } });
   }
   function editItem(itemId: string, values: Partial<QuotationItem>) {
+    // For imported quotations: diff incoming cells against current, drop confidence for any changed key
+    if (values.cells && localQ?.source === "imported_pdf" && localQ.import_confidence?.items?.[itemId]) {
+      const currentItem = localItems.find((i) => i.id === itemId);
+      if (currentItem) {
+        const changedKeys: string[] = [];
+        for (const [k, v] of Object.entries(values.cells)) {
+          if ((currentItem.cells as Record<string, unknown>)[k] !== v) changedKeys.push(k);
+        }
+        if (changedKeys.length > 0) {
+          const prevItemConf = localQ.import_confidence.items[itemId] ?? {};
+          const nextItemConf: Record<string, number> = { ...prevItemConf };
+          for (const k of changedKeys) delete nextItemConf[k];
+          const nextImportConfidence = {
+            ...localQ.import_confidence,
+            items: { ...localQ.import_confidence.items, [itemId]: nextItemConf },
+          };
+          setLocalQ((prev) => prev ? { ...prev, import_confidence: nextImportConfidence } : prev);
+        }
+      }
+    }
     setLocalItems((prev) => prev.map((i) => i.id === itemId ? { ...i, ...values } as QuotationItem : i));
     setIsDirty(true);
   }
@@ -888,8 +910,17 @@ export default function QuotationEditorPage() {
                       const isAmount = col.key === "amount";
                       const isPrice = col.key === "price" || col.type === "currency";
                       const curSym = quotation.currency === "USD" ? "$" : quotation.currency === "EUR" ? "€" : quotation.currency === "KRW" ? "₩" : quotation.currency === "CNY" ? "¥" : quotation.currency;
+                      const confScore = localQ?.source === "imported_pdf"
+                        ? localQ.import_confidence?.items?.[item.id]?.[col.key]
+                        : undefined;
+                      const confStyle: CSSProperties =
+                        confScore === undefined || confScore >= 0.9
+                          ? {}
+                          : confScore >= 0.7
+                          ? { backgroundColor: "#fff7db" }
+                          : { backgroundColor: "#fff1b8", outline: "1px dashed #d48806" };
                       return (
-                        <td key={col.key} style={{ padding: "1px 2px" }}>
+                        <td key={col.key} style={{ padding: "1px 2px", ...confStyle }}>
                           {isAmount ? (
                             <span style={{ display: "block", textAlign: "right", padding: "0 8px", fontWeight: 600, fontSize: 12 }}>
                               {formatCurrency(Number(item.cells?.[col.key]) || 0, quotation.currency)}
@@ -1044,6 +1075,12 @@ export default function QuotationEditorPage() {
   // ============================================================
   return (
     <div>
+      <VerifyBanner
+        quotation={quotation}
+        onVerified={(updated) => {
+          setLocalQ((prev) => prev ? { ...prev, ...updated } : prev);
+        }}
+      />
       <Breadcrumb className="mb-4" items={[
         { title: <Link href="/dashboard"><HomeOutlined /> 대시보드</Link> },
         { title: <Link href="/dashboard/quotations">견적서</Link> },
@@ -1060,6 +1097,31 @@ export default function QuotationEditorPage() {
         <Space>
           {isDirty && <Tag color="orange">미저장</Tag>}
           <Button size="small" icon={<FilePdfOutlined />} onClick={() => setShowPDF(true)}>PDF</Button>
+          <Button
+            size="small"
+            icon={<CopyOutlined />}
+            onClick={async () => {
+              const { data: session } = await supabaseClient.auth.getSession();
+              const token = session.session?.access_token;
+              if (!token) {
+                message.error("로그인이 필요합니다");
+                return;
+              }
+              const res = await fetch(`/api/quotations/${quotation.id}/clone`, {
+                method: "POST",
+                headers: { Authorization: `Bearer ${token}` },
+              });
+              if (!res.ok) {
+                const body = await res.json().catch(() => ({}));
+                message.error(`복제 실패: ${body.error ?? res.status}`);
+                return;
+              }
+              const body = await res.json();
+              window.location.href = `/dashboard/quotations/${body.quotation.id}`;
+            }}
+          >
+            복제
+          </Button>
           <Button size="small" onClick={() => flushToDB()} loading={saving} disabled={!isDirty}>
             저장
           </Button>
