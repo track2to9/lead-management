@@ -1,7 +1,7 @@
 "use client";
 
-import { Alert, Button, Space, Typography } from "antd";
-import { FilePdfOutlined, CheckCircleOutlined } from "@ant-design/icons";
+import { Alert, Button, Space, Typography, Modal } from "antd";
+import { FilePdfOutlined, CheckCircleOutlined, CloseOutlined } from "@ant-design/icons";
 import { useState } from "react";
 import { supabaseClient } from "@/lib/supabase-client";
 import type { Quotation } from "@/lib/types";
@@ -16,6 +16,7 @@ interface Props {
 export default function VerifyBanner({ quotation, onVerified }: Props) {
   const [signing, setSigning] = useState(false);
   const [verifying, setVerifying] = useState(false);
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
 
   if (quotation.source !== "imported_pdf") return null;
   const needsReview = quotation.status === "imported_unverified";
@@ -26,9 +27,9 @@ export default function VerifyBanner({ quotation, onVerified }: Props) {
     try {
       const { data, error } = await supabaseClient.storage
         .from("quotation-imports")
-        .createSignedUrl(quotation.import_pdf_url, 300);
+        .createSignedUrl(quotation.import_pdf_url, 600);
       if (error) throw error;
-      window.open(data.signedUrl, "_blank", "noopener");
+      setPdfUrl(data.signedUrl);
     } finally {
       setSigning(false);
     }
@@ -54,6 +55,7 @@ export default function VerifyBanner({ quotation, onVerified }: Props) {
   const failure = quotation.import_confidence?.failure_reason;
 
   return (
+    <>
     <Alert
       type={failure ? "error" : needsReview ? "warning" : "info"}
       showIcon
@@ -100,5 +102,23 @@ export default function VerifyBanner({ quotation, onVerified }: Props) {
         </Space>
       }
     />
+    {/* 인라인 PDF 뷰어 모달 */}
+    <Modal
+      open={!!pdfUrl}
+      onCancel={() => setPdfUrl(null)}
+      width={900}
+      style={{ top: 20 }}
+      title={<><FilePdfOutlined /> 원본 PDF</>}
+      footer={<Button onClick={() => setPdfUrl(null)}>닫기</Button>}
+      destroyOnClose
+    >
+      {pdfUrl && (
+        <iframe
+          src={pdfUrl}
+          style={{ width: "100%", height: "calc(100vh - 200px)", border: "none", borderRadius: 4 }}
+        />
+      )}
+    </Modal>
+    </>
   );
 }

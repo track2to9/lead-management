@@ -4,3 +4,4 @@ __pycache__/
 output/
 screenshots/
 *.xlsx
+scripts/node_modules/

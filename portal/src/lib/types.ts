@@ -116,6 +116,25 @@ export interface Evidence {
   content_date?: string;
 }
 
+// --- Manufacturer Dealer Network ---
+
+export interface ManufacturerDealer {
+  id: string;
+  brand: string;
+  category: "attachment" | "excavator";
+  company_name: string;
+  country?: string;
+  city?: string;
+  address?: string;
+  phone?: string;
+  email?: string;
+  website?: string;
+  lat?: number;
+  lng?: number;
+  raw_data?: Record<string, unknown>;
+  crawled_at: string;
+}
+
 // --- Quotation Builder ---
 
 export interface QuotationColumn {

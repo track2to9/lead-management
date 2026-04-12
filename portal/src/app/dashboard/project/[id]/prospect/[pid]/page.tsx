@@ -10,7 +10,7 @@ import {
 } from "@ant-design/icons";
 import Link from "next/link";
 import { useState } from "react";
-import type { Project, Prospect, Feedback, Evidence, Exhibition, ScoreBreakdown } from "@/lib/types";
+import type { Project, Prospect, Feedback, Evidence, Exhibition, ScoreBreakdown, ManufacturerDealer } from "@/lib/types";
 import { SCORE_DIMENSION_LABELS } from "@/lib/types";
 
 const { Title, Text, Paragraph } = Typography;
@@ -57,6 +57,10 @@ export default function ProspectDetailPage() {
     filters: [{ field: "project_id", operator: "eq", value: id }],
     pagination: { pageSize: 20 },
   });
+  const { query: dq } = useList<ManufacturerDealer>({
+    resource: "manufacturer_dealers",
+    pagination: { pageSize: 1000 },
+  });
 
   const { mutate: updateProspect } = useUpdate();
   const { mutate: createFeedback } = useCreate();
@@ -66,6 +70,22 @@ export default function ProspectDetailPage() {
   const feedback = fq.data?.data || [];
   const allEvidence = evq.data?.data || [];
   const exhibitions = exq.data?.data || [];
+  const dealers = dq.data?.data || [];
+
+  function extractDomain(url?: string): string {
+    if (!url) return "";
+    try { return new URL(url.startsWith("http") ? url : `https://${url}`).hostname.replace("www.", ""); } catch { return ""; }
+  }
+  function normalize(name: string): string {
+    return name.toLowerCase().replace(/\b(ltd|inc|co|corp|llc|gmbh|bv|sa|srl|pte|pty)\b\.?/gi, "").replace(/[^a-z0-9]/g, "").trim();
+  }
+  const matchedDealers = prospect ? dealers.filter((d) => {
+    const pDomain = extractDomain(prospect.url);
+    const pNorm = normalize(prospect.name);
+    if (pDomain && extractDomain(d.website) === pDomain) return true;
+    if (pNorm && normalize(d.company_name) === pNorm) return true;
+    return false;
+  }) : [];
 
   if (prq.isLoading || !prospect || !project) {
     return <div style={{ textAlign: "center", padding: 64 }}><Spin size="large" /></div>;
@@ -159,15 +179,74 @@ export default function ProspectDetailPage() {
           )}
         </Card>
 
-        {prospect.detected_products?.length > 0 && (
-          <Card title="취급 제품" size="small">
-            <Space wrap>{prospect.detected_products.map((p, i) => <Tag key={i} color="blue">{p}</Tag>)}</Space>
-          </Card>
-        )}
+        {(() => {
+          const brands = prospect.detected_products || [];
+          const suppliers = prospect.current_suppliers || [];
+          const isMulti = brands.length >= 3;
+          const isExclusive = brands.length === 1;
+          if (!brands.length && !suppliers.length) return null;
+          return (
+            <Card title="브랜드 분석" size="small">
+              {brands.length > 0 && (
+                <>
+                  <div style={{ marginBottom: 8 }}>
+                    {isMulti && <Tag color="green" style={{ fontWeight: 600 }}>멀티브랜드 딜러</Tag>}
+                    {isExclusive && <Tag color="orange" style={{ fontWeight: 600 }}>단일브랜드 (Exclusive)</Tag>}
+                    {brands.length === 2 && <Tag color="blue" style={{ fontWeight: 600 }}>{brands.length}개 브랜드</Tag>}
+                  </div>
+                  <div style={{ marginBottom: 4 }}>
+                    <Text type="secondary" style={{ fontSize: 11 }}>취급 브랜드 ({brands.length})</Text>
+                  </div>
+                  <Space wrap style={{ marginBottom: 12 }}>
+                    {brands.map((b, i) => <Tag key={i} color="blue">{b}</Tag>)}
+                  </Space>
+                  {isMulti && (
+                    <div style={{ background: "#f6ffed", padding: "6px 10px", borderRadius: 6, fontSize: 11, color: "#389e0d", marginBottom: 8 }}>
+                      여러 브랜드를 취급하는 딜러로, 신규 브랜드 도입 가능성이 높습니다.
+                    </div>
+                  )}
+                  {isExclusive && (
+                    <div style={{ background: "#fff7e6", padding: "6px 10px", borderRadius: 6, fontSize: 11, color: "#d48806", marginBottom: 8 }}>
+                      단일 브랜드 전용 딜러일 수 있습니다. 독점 계약 여부를 확인하세요.
+                    </div>
+                  )}
+                </>
+              )}
+              {suppliers.length > 0 && (
+                <>
+                  <div style={{ marginBottom: 4 }}>
+                    <Text type="secondary" style={{ fontSize: 11 }}>현재 공급업체</Text>
+                  </div>
+                  <Space wrap>
+                    {suppliers.map((s, i) => <Tag key={i}>{s}</Tag>)}
+                  </Space>
+                </>
+              )}
+            </Card>
+          );
+        })()}
 
         {prospect.match_reason && (
           <Card title="매칭 사유" size="small">
             <Paragraph style={{ fontSize: 13 }}>{prospect.match_reason}</Paragraph>
+          </Card>
+        )}
+
+        {matchedDealers.length > 0 && (
+          <Card title="딜러 네트워크 매칭" size="small">
+            <div style={{ background: "#f9f0ff", padding: "6px 10px", borderRadius: 6, fontSize: 11, color: "#722ed1", marginBottom: 8 }}>
+              {matchedDealers.length}개 제조사에서 공식 딜러로 등록됨
+            </div>
+            {matchedDealers.map((d) => (
+              <div key={d.id} style={{ padding: "8px 0", borderBottom: "1px solid #f0f0f0", fontSize: 12 }}>
+                <Tag color="purple" style={{ marginBottom: 4 }}>{d.brand}</Tag>
+                <div style={{ fontWeight: 600 }}>{d.company_name}</div>
+                {d.country && <div style={{ color: "#999", fontSize: 11 }}>{d.country}{d.city ? ` · ${d.city}` : ""}</div>}
+                {d.phone && <div style={{ fontSize: 11 }}>📞 {d.phone}</div>}
+                {d.email && <div style={{ fontSize: 11 }}>✉️ {d.email}</div>}
+                {d.website && <div style={{ fontSize: 11 }}><a href={d.website.startsWith("http") ? d.website : `https://${d.website}`} target="_blank" rel="noopener">🔗 {d.website}</a></div>}
+              </div>
+            ))}
           </Card>
         )}
       </div>

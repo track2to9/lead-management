@@ -10,7 +10,7 @@ import ScoreWeightsEditor from "@/components/ScoreWeightsEditor";
 import RefinementConditionsForm from "@/components/RefinementConditionsForm";
 import PatternInsightCard from "@/components/PatternInsightCard";
 import { DEFAULT_SCORE_WEIGHTS, SCORE_DIMENSION_LABELS } from "@/lib/types";
-import type { Project, Prospect, Feedback, Exhibition, ScoreWeights, ScoreBreakdown } from "@/lib/types";
+import type { Project, Prospect, Feedback, Exhibition, ScoreWeights, ScoreBreakdown, ManufacturerDealer } from "@/lib/types";
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -40,11 +40,34 @@ export default function ProjectDetailPage() {
     filters: [{ field: "project_id", operator: "eq", value: id }],
     pagination: { pageSize: 50 },
   });
+  const { query: dq } = useList<ManufacturerDealer>({
+    resource: "manufacturer_dealers",
+    pagination: { pageSize: 1000 },
+  });
 
   const project = pq.data?.data;
   const prospects = prq.data?.data || [];
   const feedback = fq.data?.data || [];
   const exhibitions = eq.data?.data || [];
+  const dealers = dq.data?.data || [];
+
+  // 딜러 매칭: prospect ↔ manufacturer_dealers
+  function extractDomain(url?: string): string {
+    if (!url) return "";
+    try { return new URL(url.startsWith("http") ? url : `https://${url}`).hostname.replace("www.", ""); } catch { return ""; }
+  }
+  function normalize(name: string): string {
+    return name.toLowerCase().replace(/\b(ltd|inc|co|corp|llc|gmbh|bv|sa|srl|pte|pty)\b\.?/gi, "").replace(/[^a-z0-9]/g, "").trim();
+  }
+  function findDealerMatches(prospect: Prospect): ManufacturerDealer[] {
+    const pDomain = extractDomain(prospect.url);
+    const pNorm = normalize(prospect.name);
+    return dealers.filter((d) => {
+      if (pDomain && extractDomain(d.website) === pDomain) return true;
+      if (pNorm && normalize(d.company_name) === pNorm) return true;
+      return false;
+    });
+  }
 
   useEffect(() => {
     if (project?.score_weights) {
@@ -121,30 +144,96 @@ export default function ProjectDetailPage() {
             onChange={(e) => setSearchText(e.target.value)} style={{ width: 300, marginBottom: 16 }} allowClear />
           <Table dataSource={sortedProspects} rowKey="id" loading={prq.isLoading} size="middle"
             pagination={{ pageSize: 15, showSizeChanger: true, showTotal: (t) => `총 ${t}개` }}
-            onRow={(record) => ({
-              onClick: () => window.location.href = `/dashboard/project/${id}/prospect/${record.id}`,
-              style: { cursor: "pointer", opacity: record.feedback_status === "rejected" ? 0.5 : 1 },
-            })}
-            columns={[
+            onRow={(record) => {
+              const brandCount = record.detected_products?.length || 0;
+              const isExclusive = brandCount === 1;
+              const isMultiBrand = brandCount >= 3;
+              return {
+                onClick: () => window.location.href = `/dashboard/project/${id}/prospect/${record.id}`,
+                style: {
+                  cursor: "pointer",
+                  opacity: record.feedback_status === "rejected" ? 0.5 : 1,
+                  background: isMultiBrand ? "#f6ffed" : isExclusive ? "#fafafa" : undefined,
+                },
+              };
+            }}
+            columns={(() => {
+              // 동적 필터 옵션 추출
+              const countryFilters = [...new Set(prospects.map(p => p.country).filter(Boolean))]
+                .sort().map(v => ({ text: v!, value: v! }));
+              const brandFilters = [...new Set(prospects.flatMap(p => p.detected_products || []))]
+                .sort().map(v => ({ text: v, value: v }));
+              const supplierFilters = [...new Set(prospects.flatMap(p => p.current_suppliers || []))]
+                .sort().map(v => ({ text: v, value: v }));
+              const priorityOrder: Record<string, number> = { high: 3, medium: 2, low: 1 };
+
+              return [
               {
                 title: "업체명", dataIndex: "name", key: "name",
                 sorter: (a: Prospect, b: Prospect) => a.name.localeCompare(b.name),
-                render: (name: string, record: Prospect) => (
-                  <div>
-                    <div style={{ fontWeight: 600 }}>{name}</div>
-                    <Text type="secondary" style={{ fontSize: 12 }}>{record.url || ""}</Text>
-                  </div>
-                ),
+                render: (name: string, record: Prospect) => {
+                  const matched = findDealerMatches(record);
+                  return (
+                    <div>
+                      <div style={{ fontWeight: 600 }}>
+                        {name}
+                        {matched.length > 0 && matched.map((m) => (
+                          <Tag key={m.id} color="purple" style={{ fontSize: 10, marginLeft: 4 }}>{m.brand} 딜러</Tag>
+                        ))}
+                      </div>
+                      <Text type="secondary" style={{ fontSize: 12 }}>{record.url || ""}</Text>
+                    </div>
+                  );
+                },
+              },
+              {
+                title: "국가", dataIndex: "country", key: "country", width: 120,
+                filters: countryFilters,
+                onFilter: (value: unknown, record: Prospect) => record.country === value,
+                sorter: (a: Prospect, b: Prospect) => (a.country || "").localeCompare(b.country || ""),
+                render: (country: string) => country || <Text type="secondary">-</Text>,
               },
               {
                 title: "점수", dataIndex: "match_score", key: "score", width: 80,
                 sorter: (a: Prospect, b: Prospect) => (a.match_score || 0) - (b.match_score || 0),
-                defaultSortOrder: "descend",
+                defaultSortOrder: "descend" as const,
                 render: (_: number, record: Prospect) => {
                   const displayScore = record.score_breakdown
                     ? computeWeightedScore(record.score_breakdown, weights)
                     : record.match_score;
                   return <Tag color={displayScore >= 80 ? "green" : displayScore >= 50 ? "gold" : "default"} style={{ fontWeight: 700 }}>{displayScore}</Tag>;
+                },
+              },
+              {
+                title: "취급 브랜드", key: "brands", width: 180,
+                filters: brandFilters,
+                onFilter: (value: unknown, record: Prospect) => (record.detected_products || []).includes(String(value)),
+                sorter: (a: Prospect, b: Prospect) => (a.detected_products?.length || 0) - (b.detected_products?.length || 0),
+                render: (_: unknown, record: Prospect) => {
+                  const brands = record.detected_products || [];
+                  if (!brands.length) return <Text type="secondary">-</Text>;
+                  const isMulti = brands.length >= 3;
+                  const isExclusive = brands.length === 1;
+                  return (
+                    <div>
+                      {isMulti && <Tag color="green" style={{ fontSize: 10, marginBottom: 2 }}>멀티브랜드</Tag>}
+                      {isExclusive && <Tag color="default" style={{ fontSize: 10, marginBottom: 2 }}>단일브랜드</Tag>}
+                      <div>
+                        {brands.slice(0, 3).map(b => <Tag key={b} style={{ fontSize: 11, marginBottom: 2 }}>{b}</Tag>)}
+                        {brands.length > 3 && <Tag style={{ fontSize: 11 }}>+{brands.length - 3}</Tag>}
+                      </div>
+                    </div>
+                  );
+                },
+              },
+              {
+                title: "공급업체", key: "suppliers", width: 160,
+                filters: supplierFilters,
+                onFilter: (value: unknown, record: Prospect) => (record.current_suppliers || []).includes(String(value)),
+                render: (_: unknown, record: Prospect) => {
+                  const suppliers = record.current_suppliers || [];
+                  if (!suppliers.length) return <Text type="secondary">-</Text>;
+                  return <Text type="secondary" style={{ fontSize: 12 }}>{suppliers.slice(0, 3).join(", ")}{suppliers.length > 3 ? ` +${suppliers.length - 3}` : ""}</Text>;
                 },
               },
               {
@@ -157,11 +246,8 @@ export default function ProjectDetailPage() {
                 title: "등급", dataIndex: "priority", key: "priority", width: 90,
                 filters: [{ text: "HIGH", value: "high" }, { text: "MEDIUM", value: "medium" }, { text: "LOW", value: "low" }],
                 onFilter: (value: unknown, record: Prospect) => record.priority === value,
+                sorter: (a: Prospect, b: Prospect) => (priorityOrder[a.priority] || 0) - (priorityOrder[b.priority] || 0),
                 render: (p: string) => <Tag color={p === "high" ? "red" : p === "medium" ? "orange" : "default"}>{p?.toUpperCase()}</Tag>,
-              },
-              {
-                title: "공급업체", key: "suppliers", width: 160,
-                render: (_: unknown, record: Prospect) => <Text type="secondary" style={{ fontSize: 12 }}>{record.current_suppliers?.slice(0, 3).join(", ") || "-"}</Text>,
               },
               {
                 title: "상태", dataIndex: "feedback_status", key: "status", width: 100,
@@ -169,7 +255,8 @@ export default function ProjectDetailPage() {
                 onFilter: (value: unknown, record: Prospect) => (record.feedback_status || "pending") === value,
                 render: (s: string) => s === "accepted" ? <Badge status="success" text="승인" /> : s === "rejected" ? <Badge status="error" text="제외" /> : s === "needs_more" ? <Badge status="warning" text="추가분석" /> : <Badge status="default" text="대기" />,
               },
-            ]}
+            ];
+            })()}
           />
         </div>
       ),
