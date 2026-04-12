@@ -29,22 +29,11 @@ export default function ImportDropzone({ open, onClose, onAllDone }: Props) {
   const [rows, setRows] = useState<RowState[]>([]);
   const [running, setRunning] = useState(false);
 
-  function addFiles(files: File[]) {
-    setRows((prev) => [
-      ...prev,
-      ...files.map((f) => ({
-        uid: `${f.name}-${Date.now()}-${Math.random()}`,
-        name: f.name,
-        status: "pending" as FileStatus,
-      })),
-    ]);
-  }
-
-  async function runSequentialUpload(files: File[]) {
+  async function runSequentialUpload(files: File[], fileRows: RowState[]) {
     setRunning(true);
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
-      const uid = rows[i]?.uid ?? `${file.name}-${i}`;
+      const uid = fileRows[i].uid;
       updateRow(uid, { status: "uploading" });
 
       try {
@@ -88,10 +77,16 @@ export default function ImportDropzone({ open, onClose, onAllDone }: Props) {
   }
 
   function handleBeforeUpload(file: File, fileList: File[]) {
-    addFiles(fileList);
-    // When Dragger batches, runSequentialUpload kicks off once (on the last file)
+    // Ant Design calls beforeUpload once per file but passes the full fileList each time.
+    // Only process on the last file to avoid duplicate entries.
     if (file === fileList[fileList.length - 1]) {
-      void runSequentialUpload(fileList);
+      const newRows: RowState[] = fileList.map((f) => ({
+        uid: `${f.name}-${Date.now()}-${Math.random()}`,
+        name: f.name,
+        status: "pending" as FileStatus,
+      }));
+      setRows((prev) => [...prev, ...newRows]);
+      void runSequentialUpload(fileList, newRows);
     }
     return false; // prevent default upload
   }
