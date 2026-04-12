@@ -15,10 +15,13 @@ interface Props {
   onRemoveItem: (itemId: string) => void;
   onAddColumn: (column: QuotationColumn) => void;
   onRemoveColumn: (key: string) => void;
+  /** Optional: per-item per-cell confidence (0..1). Cells below 0.9 get highlighted. */
+  confidenceMap?: Record<string, Record<string, number>>;
 }
 
 export default function EditableTable({
   columns, items, currency, onItemChange, onAddItem, onRemoveItem, onAddColumn, onRemoveColumn,
+  confidenceMap,
 }: Props) {
   const [editingCell, setEditingCell] = useState<{ itemId: string; key: string } | null>(null);
   const [newColName, setNewColName] = useState("");
@@ -66,6 +69,21 @@ export default function EditableTable({
     } else if (e.key === "Escape") {
       setEditingCell(null);
     }
+  }
+
+  function confidenceStyle(itemId: string, key: string): React.CSSProperties | undefined {
+    const c = confidenceMap?.[itemId]?.[key];
+    if (c === undefined) return undefined;
+    if (c >= 0.9) return undefined;
+    if (c >= 0.7) {
+      return { backgroundColor: "#fff7db", display: "block", padding: 2 };
+    }
+    return {
+      backgroundColor: "#fff1b8",
+      border: "1px dashed #d48806",
+      display: "block",
+      padding: 2,
+    };
   }
 
   const tableColumns = [
@@ -121,6 +139,12 @@ export default function EditableTable({
           );
         }
 
+        const confStyle = confidenceStyle(record.id, col.key);
+        const confTitle =
+          confidenceMap?.[record.id]?.[col.key] !== undefined
+            ? `confidence: ${Math.round((confidenceMap[record.id][col.key] ?? 0) * 100)}%`
+            : undefined;
+
         return (
           <div
             onClick={() => handleCellClick(record.id, col.key)}
@@ -128,7 +152,11 @@ export default function EditableTable({
             onMouseEnter={(e) => (e.currentTarget.style.border = "1px solid #d9d9d9")}
             onMouseLeave={(e) => (e.currentTarget.style.border = "1px solid transparent")}
           >
-            {col.type === "currency" ? formatCurrency(Number(value) || 0, currency) : String(value) || <span style={{ color: "#ccc" }}>클릭하여 입력</span>}
+            <span style={confStyle} title={confTitle}>
+              {col.type === "currency"
+                ? formatCurrency(Number(value) || 0, currency)
+                : String(value) || <span style={{ color: "#ccc" }}>클릭하여 입력</span>}
+            </span>
           </div>
         );
       },
