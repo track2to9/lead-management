@@ -40,6 +40,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  // Fail fast if server is misconfigured — avoids creating phantom shell rows
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return NextResponse.json(
+      { error: "Server misconfiguration: ANTHROPIC_API_KEY not set" },
+      { status: 500 },
+    );
+  }
+
   // 2. Parse multipart
   let form: FormData;
   try {
@@ -60,6 +68,12 @@ export async function POST(request: Request) {
   }
 
   const bytes = new Uint8Array(await file.arrayBuffer());
+
+  // Magic bytes: real PDFs start with "%PDF"
+  if (bytes[0] !== 0x25 || bytes[1] !== 0x50 || bytes[2] !== 0x44 || bytes[3] !== 0x46) {
+    return NextResponse.json({ error: "File is not a valid PDF" }, { status: 415 });
+  }
+
   const admin = getSupabaseAdmin();
 
   // 3. Upload to Storage
@@ -195,13 +209,18 @@ export async function POST(request: Request) {
       perItemConfidence[row.id] = llm.items[idx].confidence;
     });
     importConfidence.items = perItemConfidence;
-    const quotationsUpdate = admin.from("quotations") as unknown as SupabaseTable;
-    await quotationsUpdate
+    const { error: backfillErr } = await (admin.from("quotations") as unknown as SupabaseTable)
       .update({ import_confidence: importConfidence })
       .eq("id", quotationId);
+    if (backfillErr) {
+      console.error("[import] confidence back-fill failed", {
+        quotationId,
+        error: backfillErr.message,
+      });
+    }
   }
 
-  return NextResponse.json({ quotation: quotationRow });
+  return NextResponse.json({ quotation: quotationRow, status: "ok" });
 }
 
 // ---- helpers ----
@@ -254,5 +273,9 @@ async function insertEmptyShell(
       { status: 500 },
     );
   }
-  return NextResponse.json({ quotation: data });
+  return NextResponse.json({
+    quotation: data,
+    status: "partial",
+    failure_reason: confidenceOverrides.failure_reason ?? null,
+  });
 }
