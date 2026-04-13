@@ -112,6 +112,68 @@ export default function ProjectDetailPage() {
 
   const tabItems = [
     {
+      key: "my-profile",
+      label: "내 회사/제품",
+      children: (
+        <div style={{ maxWidth: 800 }}>
+          <Card size="small" title="회사 정보" style={{ marginBottom: 12 }}>
+            <Space direction="vertical" size={12} style={{ width: "100%" }}>
+              <div>
+                <Text strong style={{ fontSize: 12 }}>회사 홈페이지</Text>
+                <Input defaultValue={project.company_url || ""}
+                  onBlur={(e) => updateProject({ resource: "projects", id, values: { company_url: e.target.value } })}
+                  placeholder="https://..." />
+              </div>
+              <div>
+                <Text strong style={{ fontSize: 12 }}>회사 소개</Text>
+                <Input.TextArea defaultValue={project.company_profile || ""}
+                  onBlur={(e) => updateProject({ resource: "projects", id, values: { company_profile: e.target.value } })}
+                  rows={3} placeholder="회사 규모, 설립연도, 강점 등" />
+              </div>
+              <div>
+                <Text strong style={{ fontSize: 12 }}>제품 상세 설명</Text>
+                <Input.TextArea defaultValue={project.product_profile || ""}
+                  onBlur={(e) => updateProject({ resource: "projects", id, values: { product_profile: e.target.value } })}
+                  rows={4} placeholder="제품 스펙, 기술 강점, 인증, 가격 경쟁력 등" />
+              </div>
+              {(project.attachment_urls?.length || 0) > 0 && (
+                <div>
+                  <Text strong style={{ fontSize: 12 }}>업로드된 자료</Text>
+                  <div style={{ marginTop: 4 }}>
+                    {(project.attachment_urls || []).map((url, i) => (
+                      <Tag key={i} style={{ marginBottom: 4 }}>
+                        <a href={url} target="_blank" rel="noopener">📎 자료 {i + 1}</a>
+                      </Tag>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </Space>
+          </Card>
+          <Card size="small" title="🤖 AI 분석 결과 (수정 가능)" style={{ background: "#f6ffed", borderColor: "#b7eb8f" }}>
+            <Paragraph type="secondary" style={{ fontSize: 11, marginBottom: 12 }}>
+              AI가 회사 홈페이지와 업로드한 자료를 분석한 결과입니다. 맞지 않는 부분은 직접 수정하세요.
+              수정한 내용은 잠재고객 매칭에 반영됩니다.
+            </Paragraph>
+            <Space direction="vertical" size={12} style={{ width: "100%" }}>
+              <div>
+                <Text strong style={{ fontSize: 12 }}>회사 분석</Text>
+                <Input.TextArea defaultValue={project.ai_company_analysis || ""}
+                  onBlur={(e) => updateProject({ resource: "projects", id, values: { ai_company_analysis: e.target.value } })}
+                  rows={4} placeholder="분석 중... (자료 업로드 후 AI가 자동 분석)" />
+              </div>
+              <div>
+                <Text strong style={{ fontSize: 12 }}>제품 분석</Text>
+                <Input.TextArea defaultValue={project.ai_product_analysis || ""}
+                  onBlur={(e) => updateProject({ resource: "projects", id, values: { ai_product_analysis: e.target.value } })}
+                  rows={4} placeholder="분석 중... (자료 업로드 후 AI가 자동 분석)" />
+              </div>
+            </Space>
+          </Card>
+        </div>
+      ),
+    },
+    {
       key: "prospects",
       label: `바이어 리스트 (${prospects.length})`,
       children: (

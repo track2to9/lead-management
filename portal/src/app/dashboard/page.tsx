@@ -63,12 +63,19 @@ export default function DashboardPage() {
           columns={[
             {
               title: "프로젝트", dataIndex: "name", key: "name",
+              sorter: (a: Project, b: Project) => a.name.localeCompare(b.name),
               render: (name: string, record: Project) => (
                 <div>
                   <div style={{ fontWeight: 600 }}>{name}</div>
-                  <Text type="secondary" style={{ fontSize: 12 }}>{record.product} · {record.created_at?.split("T")[0]}</Text>
+                  <Text type="secondary" style={{ fontSize: 12 }}>{record.product}</Text>
                 </div>
               ),
+            },
+            {
+              title: "시작일", dataIndex: "created_at", key: "created_at", width: 120,
+              sorter: (a: Project, b: Project) => (a.created_at || "").localeCompare(b.created_at || ""),
+              defaultSortOrder: "descend" as const,
+              render: (v: string) => v?.split("T")[0] || "-",
             },
             { title: "국가", dataIndex: "countries", key: "countries", width: 120 },
             {

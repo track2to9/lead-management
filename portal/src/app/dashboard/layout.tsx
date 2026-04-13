@@ -2,7 +2,7 @@
 
 import { useGetIdentity, useLogout } from "@refinedev/core";
 import { Layout, Menu, Button, Typography, Spin } from "antd";
-import { DashboardOutlined, PlusOutlined, SettingOutlined, LogoutOutlined, GlobalOutlined, FileTextOutlined, UserOutlined } from "@ant-design/icons";
+import { DashboardOutlined, PlusOutlined, LogoutOutlined, GlobalOutlined, FileTextOutlined, UserOutlined, SearchOutlined, AppstoreOutlined } from "@ant-design/icons";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
@@ -38,10 +38,20 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <Menu
           mode="inline"
           selectedKeys={[pathname]}
+          defaultOpenKeys={["prospecting"]}
           style={{ border: "none" }}
           items={[
-            { key: "/dashboard", icon: <DashboardOutlined />, label: <Link href="/dashboard">대시보드</Link> },
-            { key: "/dashboard/new", icon: <PlusOutlined />, label: <Link href="/dashboard/new">새 분석 요청</Link> },
+            { key: "/", icon: <AppstoreOutlined />, label: <Link href="/dashboard">대시보드</Link> },
+            { type: "divider" },
+            {
+              key: "prospecting",
+              icon: <SearchOutlined />,
+              label: "잠재고객 발굴",
+              children: [
+                { key: "/dashboard", icon: <DashboardOutlined />, label: <Link href="/dashboard">프로젝트 목록</Link> },
+                { key: "/dashboard/new", icon: <PlusOutlined />, label: <Link href="/dashboard/new">새 분석 요청</Link> },
+              ],
+            },
             { type: "divider" },
             { key: "/dashboard/quotations", icon: <FileTextOutlined />, label: <Link href="/dashboard/quotations">견적서</Link> },
             { type: "divider" },

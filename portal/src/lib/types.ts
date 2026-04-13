@@ -46,6 +46,13 @@ export interface Project {
   score_weights?: ScoreWeights;
   refinement_conditions?: string[];
   refinement_round?: number;
+  // 내 회사/제품 프로필 (Issue #2)
+  company_url?: string;                   // 고객사 홈페이지
+  company_profile?: string;               // 고객사 자유 설명
+  product_profile?: string;               // 제품 상세 설명
+  attachment_urls?: string[];             // 업로드한 자료 (PDF 등) Storage 경로
+  ai_company_analysis?: string;           // AI가 회사 분석한 결과 (수정 가능)
+  ai_product_analysis?: string;           // AI가 제품 분석한 결과 (수정 가능)
   created_at: string;
   updated_at: string;
 }

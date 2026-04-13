@@ -17,7 +17,7 @@ import path from "path";
 // Load .env from scripts/ and portal/.env.local
 dotenv.config();
 dotenv.config({ path: path.resolve(__dirname, "../portal/.env.local") });
-import FirecrawlApp from "@mendable/firecrawl-js";
+import Firecrawl from "@mendable/firecrawl-js";
 import { createClient } from "@supabase/supabase-js";
 
 // ─── Config ──────────────────────────────────────────────
@@ -131,7 +131,7 @@ const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 if (!FIRECRAWL_KEY) { console.error("Missing FIRECRAWL_API_KEY"); process.exit(1); }
 if (!SUPABASE_URL || !SUPABASE_KEY) { console.error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY"); process.exit(1); }
 
-const firecrawl = new FirecrawlApp({ apiKey: FIRECRAWL_KEY });
+const firecrawl = new Firecrawl({ apiKey: FIRECRAWL_KEY });
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // ─── Crawl logic ─────────────────────────────────────────
@@ -139,39 +139,40 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 async function scrapeDealers(url: string): Promise<CrawledDealer[]> {
   console.log(`  Scraping: ${url}`);
   try {
-    const result = await firecrawl.scrapeUrl(url, {
-      formats: ["extract"],
-      extract: {
-        schema: DEALER_SCHEMA,
-        prompt: "Extract all dealer/distributor information from this page. Include company name, country, city, address, phone, email, website for each dealer.",
-      },
+    const result = await firecrawl.scrape(url, {
+      formats: [
+        {
+          type: "json",
+          schema: DEALER_SCHEMA,
+          prompt: "Extract all dealer/distributor information from this page. Include company name, country, city, address, phone, email, website for each dealer. Be thorough - extract ALL dealers visible.",
+        },
+      ],
     });
 
-    if (result.success && result.extract?.dealers) {
-      return result.extract.dealers as CrawledDealer[];
+    if (result.json?.dealers) {
+      return result.json.dealers as CrawledDealer[];
     }
 
-    // Fallback: try markdown + manual parse
-    console.log(`  No structured extract, trying markdown fallback...`);
-    const mdResult = await firecrawl.scrapeUrl(url, { formats: ["markdown"] });
-    if (mdResult.success && mdResult.markdown) {
-      // Use extract on markdown content
-      const retryResult = await firecrawl.scrapeUrl(url, {
-        formats: ["extract"],
-        extract: {
+    // Fallback: retry with simpler prompt
+    console.log(`  No dealers in first pass, retrying...`);
+    const retry = await firecrawl.scrape(url, {
+      formats: [
+        {
+          type: "json",
           schema: DEALER_SCHEMA,
-          prompt: "This page contains dealer/distributor contact information. Extract every dealer with their company name, country, city, phone, email, and website. Be thorough - extract ALL dealers visible on the page.",
+          prompt: "This page lists dealers or distributors. Extract every company name, country, city, phone, email, website you can find.",
         },
-      });
-      if (retryResult.success && retryResult.extract?.dealers) {
-        return retryResult.extract.dealers as CrawledDealer[];
-      }
+      ],
+    });
+
+    if (retry.json?.dealers) {
+      return retry.json.dealers as CrawledDealer[];
     }
 
     console.log(`  Warning: no dealers extracted from ${url}`);
     return [];
-  } catch (err) {
-    console.error(`  Error scraping ${url}:`, err);
+  } catch (err: any) {
+    console.error(`  Error scraping ${url}:`, err?.message || err);
     return [];
   }
 }

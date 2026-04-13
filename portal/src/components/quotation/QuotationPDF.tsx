@@ -22,7 +22,20 @@ export default function QuotationPDF({ quotation, items, open, onClose }: Props)
     const html2canvas = (await import("html2canvas")).default;
     const { jsPDF } = await import("jspdf");
 
-    const canvas = await html2canvas(el, { scale: 2, useCORS: true });
+    // 이미지 로드 대기 (logo/signature) — CORS 안전
+    const imgs = Array.from(el.querySelectorAll("img")) as HTMLImageElement[];
+    await Promise.all(
+      imgs.map((img) =>
+        img.complete && img.naturalHeight > 0
+          ? Promise.resolve()
+          : new Promise<void>((resolve) => {
+              img.onload = () => resolve();
+              img.onerror = () => resolve();
+            }),
+      ),
+    );
+
+    const canvas = await html2canvas(el, { scale: 2, useCORS: true, allowTaint: true });
     const imgData = canvas.toDataURL("image/png");
     const pdf = new jsPDF("p", "mm", "a4");
     const pdfWidth = pdf.internal.pageSize.getWidth();
@@ -48,11 +61,27 @@ export default function QuotationPDF({ quotation, items, open, onClose }: Props)
             DRAFT
           </div>
         )}
-        <div style={{ textAlign: "center", marginBottom: 24 }}>
-          <div style={{ fontSize: 18, fontWeight: 900 }}>{h.name || "Company Name"}</div>
-          {h.address && <div style={{ fontSize: 10, color: "#666" }}>{h.address}</div>}
-          {h.tel && <div style={{ fontSize: 10, color: "#666" }}>Tel: {h.tel}</div>}
-          {h.web && <div style={{ fontSize: 10, color: "#666" }}>{h.web}</div>}
+        {/* 헤더: 로고(좌) + 타이틀(우) */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
+          <div style={{ flex: 1 }}>
+            {h.logo_url ? (
+              <img src={h.logo_url} alt="Logo" style={{ maxHeight: 60, objectFit: "contain" }} crossOrigin="anonymous" />
+            ) : (
+              <div style={{ fontSize: 16, fontWeight: 900 }}>{h.name || "Company Name"}</div>
+            )}
+          </div>
+          <div style={{ textAlign: "right" }}>
+            <div style={{ fontSize: 24, fontWeight: 900, color: "#cc0000", fontStyle: "italic" }}>
+              {h.doc_title || "Quotation"}
+            </div>
+          </div>
+        </div>
+        <div style={{ height: 2, background: "linear-gradient(to right, #999, #ccc)", marginBottom: 12 }} />
+        {/* 회사 정보 */}
+        <div style={{ fontSize: 10, color: "#333", lineHeight: 1.6, marginBottom: 16 }}>
+          {h.address && <div>{h.address}</div>}
+          {h.tel && <div>Tel: {h.tel}</div>}
+          {h.web && <div>Website: {h.web}</div>}
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
           <div><strong>Ref No:</strong> {quotation.ref_no}</div>
@@ -92,6 +121,18 @@ export default function QuotationPDF({ quotation, items, open, onClose }: Props)
           {f.validity && <div><strong>Validity:</strong> {f.validity}</div>}
           {f.remarks && <div><strong>Remarks:</strong> {f.remarks}</div>}
         </div>
+        {/* 서명 */}
+        {(f.sig_name || f.sig_url) && (
+          <div style={{ marginTop: 36, textAlign: "right" }}>
+            {f.sig_url && (
+              <img src={f.sig_url} alt="Signature" style={{ maxHeight: 60, objectFit: "contain", marginBottom: 4 }} crossOrigin="anonymous" />
+            )}
+            <div style={{ fontSize: 11, fontWeight: 700 }}>
+              {f.sig_name}{f.sig_title ? ` / ${f.sig_title}` : ""}
+            </div>
+            <div style={{ fontSize: 9, color: "#666", fontStyle: "italic" }}>Authorized Signature</div>
+          </div>
+        )}
       </div>
     </Modal>
   );

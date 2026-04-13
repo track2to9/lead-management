@@ -3,9 +3,11 @@
 import { useState } from "react";
 import { useCreate, useGetIdentity } from "@refinedev/core";
 import { useRouter } from "next/navigation";
-import { Card, Button, Input, Typography, Steps, Space, Tag, Breadcrumb } from "antd";
-import { HomeOutlined } from "@ant-design/icons";
+import { Card, Button, Input, Typography, Steps, Space, Tag, Breadcrumb, Upload, message } from "antd";
+import type { UploadFile } from "antd";
+import { HomeOutlined, InboxOutlined, DeleteOutlined } from "@ant-design/icons";
 import Link from "next/link";
+import { supabaseClient } from "@/lib/supabase-client";
 
 const { Title, Text, Paragraph } = Typography;
 const { TextArea } = Input;
@@ -21,9 +23,36 @@ export default function NewRequestPage() {
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({
     productName: "", productUrl: "", productDetail: "",
+    companyUrl: "", companyProfile: "",
     targetCustomer: "", domesticClients: "",
     countries: [] as string[], countriesOther: "", additionalNotes: "",
   });
+  const [attachments, setAttachments] = useState<{ name: string; url: string }[]>([]);
+  const [uploading, setUploading] = useState(false);
+
+  async function handleUpload(file: File): Promise<false> {
+    setUploading(true);
+    try {
+      const ext = file.name.split(".").pop() || "bin";
+      const path = `analysis-attachments/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
+      const { error } = await supabaseClient.storage.from("quotation-assets").upload(path, file, {
+        cacheControl: "3600", upsert: false, contentType: file.type,
+      });
+      if (error) throw error;
+      const { data } = supabaseClient.storage.from("quotation-assets").getPublicUrl(path);
+      setAttachments((prev) => [...prev, { name: file.name, url: data.publicUrl }]);
+      message.success(`${file.name} 업로드됨`);
+    } catch (e: any) {
+      message.error(`업로드 실패: ${e?.message || "오류"}`);
+    } finally {
+      setUploading(false);
+    }
+    return false;
+  }
+
+  function removeAttachment(url: string) {
+    setAttachments((prev) => prev.filter((a) => a.url !== url));
+  }
 
   function update(key: string, value: string | string[]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -60,6 +89,11 @@ export default function NewRequestPage() {
           product: form.productName,
           countries: countriesStr,
           total_companies: 0, high_count: 0, medium_count: 0, emails_drafted: 0,
+          // Issue #2: 내 회사/제품 프로필
+          company_url: form.companyUrl || null,
+          company_profile: form.companyProfile || null,
+          product_profile: form.productDetail || null,
+          attachment_urls: attachments.map((a) => a.url),
         },
       },
       {
@@ -107,7 +141,7 @@ export default function NewRequestPage() {
       <Steps current={step} size="small" items={steps} style={{ marginBottom: 32 }} />
 
       <Card>
-        {/* Step 0: 제품 */}
+        {/* Step 0: 제품 + 회사 정보 */}
         {step === 0 && (
           <Space direction="vertical" size={16} style={{ width: "100%" }}>
             <div>
@@ -116,14 +150,52 @@ export default function NewRequestPage() {
                 placeholder="예: 굴삭기 어태치먼트, 5G 코어 솔루션" size="large" style={{ marginTop: 4 }} />
             </div>
             <div>
-              <Text strong>홈페이지 <Text type="secondary" style={{ fontWeight: 400 }}>(AI가 분석)</Text></Text>
-              <Input value={form.productUrl} onChange={(e) => update("productUrl", e.target.value)}
-                placeholder="https://..." size="large" style={{ marginTop: 4 }} />
+              <Text strong>회사 홈페이지 <Text type="secondary" style={{ fontWeight: 400 }}>(AI가 회사 정보 자동 분석)</Text></Text>
+              <Input value={form.companyUrl} onChange={(e) => update("companyUrl", e.target.value)}
+                placeholder="https://our-company.com" size="large" style={{ marginTop: 4 }} />
             </div>
             <div>
-              <Text strong>상세 설명 <Text type="secondary" style={{ fontWeight: 400 }}>(선택)</Text></Text>
+              <Text strong>제품 페이지 URL <Text type="secondary" style={{ fontWeight: 400 }}>(선택)</Text></Text>
+              <Input value={form.productUrl} onChange={(e) => update("productUrl", e.target.value)}
+                placeholder="https://our-company.com/product" size="large" style={{ marginTop: 4 }} />
+            </div>
+            <div>
+              <Text strong>회사 소개 <Text type="secondary" style={{ fontWeight: 400 }}>(선택, AI 분석에 참고)</Text></Text>
+              <TextArea value={form.companyProfile} onChange={(e) => update("companyProfile", e.target.value)}
+                placeholder="회사 규모, 설립연도, 주요 연혁, 강점 등" rows={3} style={{ marginTop: 4 }} />
+            </div>
+            <div>
+              <Text strong>제품 상세 설명 <Text type="secondary" style={{ fontWeight: 400 }}>(선택)</Text></Text>
               <TextArea value={form.productDetail} onChange={(e) => update("productDetail", e.target.value)}
-                placeholder="주력 제품, 기술 강점, 가격 경쟁력 등" rows={4} style={{ marginTop: 4 }} />
+                placeholder="주력 제품, 기술 강점, 가격 경쟁력, 인증, 특허 등" rows={4} style={{ marginTop: 4 }} />
+            </div>
+            <div>
+              <Text strong>회사/제품 자료 업로드 <Text type="secondary" style={{ fontWeight: 400 }}>(PDF, 브로셔, 카탈로그 등)</Text></Text>
+              <Paragraph type="secondary" style={{ fontSize: 12, marginTop: 4, marginBottom: 8 }}>
+                업로드한 자료는 AI가 참고하여 회사/제품을 더 정확히 분석합니다.
+              </Paragraph>
+              <Upload.Dragger
+                multiple
+                accept=".pdf,.doc,.docx,.ppt,.pptx,.jpg,.png"
+                beforeUpload={handleUpload}
+                showUploadList={false}
+                disabled={uploading}
+              >
+                <p className="ant-upload-drag-icon"><InboxOutlined /></p>
+                <p>클릭하거나 파일을 드래그해서 업로드</p>
+                <p style={{ fontSize: 11, color: "#999" }}>PDF, DOCX, PPTX, 이미지</p>
+              </Upload.Dragger>
+              {attachments.length > 0 && (
+                <div style={{ marginTop: 8 }}>
+                  {attachments.map((a) => (
+                    <Tag key={a.url} closable closeIcon={<DeleteOutlined />}
+                      onClose={() => removeAttachment(a.url)}
+                      style={{ marginBottom: 4, padding: "4px 8px" }}>
+                      📎 {a.name}
+                    </Tag>
+                  ))}
+                </div>
+              )}
             </div>
           </Space>
         )}
