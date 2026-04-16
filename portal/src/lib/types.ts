@@ -127,6 +127,7 @@ export interface Evidence {
 
 export interface ManufacturerDealer {
   id: string;
+  user_id?: string | null;   // null = admin-global, else user-scoped
   brand: string;
   category: "attachment" | "excavator";
   company_name: string;
@@ -139,7 +140,22 @@ export interface ManufacturerDealer {
   lat?: number;
   lng?: number;
   raw_data?: Record<string, unknown>;
+  source_url?: string;
   crawled_at: string;
+}
+
+export interface DealerCrawlJob {
+  id: string;
+  user_id: string;
+  brand: string;
+  category: "attachment" | "excavator";
+  source_url: string;
+  status: "pending" | "running" | "success" | "failed";
+  dealers_found: number;
+  error_message?: string;
+  started_at?: string;
+  finished_at?: string;
+  created_at: string;
 }
 
 // --- Quotation Builder ---

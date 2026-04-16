@@ -9,6 +9,7 @@ import { useState, useEffect } from "react";
 import ScoreWeightsEditor from "@/components/ScoreWeightsEditor";
 import RefinementConditionsForm from "@/components/RefinementConditionsForm";
 import PatternInsightCard from "@/components/PatternInsightCard";
+import DealerCrawler from "@/components/DealerCrawler";
 import { DEFAULT_SCORE_WEIGHTS, SCORE_DIMENSION_LABELS } from "@/lib/types";
 import type { Project, Prospect, Feedback, Exhibition, ScoreWeights, ScoreBreakdown, ManufacturerDealer } from "@/lib/types";
 
@@ -338,6 +339,11 @@ export default function ProjectDetailPage() {
           ))}
         </div>
       ),
+    },
+    {
+      key: "dealers",
+      label: "제조사 딜러",
+      children: <DealerCrawler />,
     },
     {
       key: "feedback",
