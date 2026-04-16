@@ -7,3 +7,4 @@ output/
 screenshots/
 *.xlsx
 scripts/node_modules/
+.worktrees/
