@@ -9,7 +9,7 @@
  * Env vars (from ../.env.local or .env):
  *   FIRECRAWL_API_KEY
  *   SUPABASE_URL
- *   SUPABASE_SERVICE_ROLE_KEY
+ *   SUPABASE_SECRET_KEY (or legacy SUPABASE_SERVICE_ROLE_KEY)
  */
 
 import dotenv from "dotenv";
@@ -126,10 +126,10 @@ interface CrawledDealer {
 
 const FIRECRAWL_KEY = process.env.FIRECRAWL_API_KEY;
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
-const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const SUPABASE_KEY = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 if (!FIRECRAWL_KEY) { console.error("Missing FIRECRAWL_API_KEY"); process.exit(1); }
-if (!SUPABASE_URL || !SUPABASE_KEY) { console.error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY"); process.exit(1); }
+if (!SUPABASE_URL || !SUPABASE_KEY) { console.error("Missing SUPABASE_URL or SUPABASE_SECRET_KEY"); process.exit(1); }
 
 const firecrawl = new Firecrawl({ apiKey: FIRECRAWL_KEY });
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);

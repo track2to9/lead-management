@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useList } from "@refinedev/core";
-import { Card, Input, Button, Select, Space, Typography, Tag, Alert, Progress, Table, Popconfirm, message } from "antd";
+import { Card, Input, Button, Select, Space, Typography, Tag, Alert, Progress, Table, Popconfirm, message, Checkbox, Tooltip } from "antd";
 import { PlusOutlined, DeleteOutlined, LoadingOutlined, CheckCircleOutlined, CloseCircleOutlined } from "@ant-design/icons";
 import { supabaseClient } from "@/lib/supabase-client";
 import type { ManufacturerDealer } from "@/lib/types";
@@ -47,6 +47,7 @@ export default function DealerCrawler() {
   const [brand, setBrand] = useState("");
   const [category, setCategory] = useState<"attachment" | "excavator">("excavator");
   const [url, setUrl] = useState("");
+  const [deepScan, setDeepScan] = useState(false);
   const [crawling, setCrawling] = useState(false);
   const [logs, setLogs] = useState<LogLine[]>([]);
   const [foundDealers, setFoundDealers] = useState<ManufacturerDealer[]>([]);
@@ -86,13 +87,15 @@ export default function DealerCrawler() {
       if (!token) { message.error("로그인 세션이 없습니다"); setCrawling(false); return; }
 
       const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY;
       const response = await fetch(`${supabaseUrl}/functions/v1/crawl-dealers`, {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${token}`,
+          "apikey": publishableKey || "",
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ brand, category, url }),
+        body: JSON.stringify({ brand, category, url, deepScan, maxSubpages: 30 }),
       });
 
       if (!response.ok || !response.body) {
@@ -198,9 +201,16 @@ export default function DealerCrawler() {
               <Text strong style={{ fontSize: 12 }}>딜러 페이지 URL</Text>
               <Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://..." />
             </div>
+            <div style={{ background: "#fafafa", padding: "8px 12px", borderRadius: 6 }}>
+              <Tooltip title="메인 페이지의 하위 URL (예: /dealers/germany/, /dealers/france/)을 자동으로 탐색해서 각 국가별 딜러를 수집합니다. 페이지당 약 5 크레딧 소모, 최대 30개 서브페이지 (~150 크레딧).">
+                <Checkbox checked={deepScan} onChange={(e) => setDeepScan(e.target.checked)}>
+                  <Text strong style={{ fontSize: 12 }}>Deep Scan</Text> <Text type="secondary" style={{ fontSize: 11 }}>— 서브페이지까지 자동 탐색 (크레딧 많이 소모)</Text>
+                </Checkbox>
+              </Tooltip>
+            </div>
             <Button type="primary" icon={crawling ? <LoadingOutlined /> : <PlusOutlined />}
               onClick={startCrawl} loading={crawling} disabled={!brand || !url} block>
-              {crawling ? "크롤링 중..." : "크롤링 시작"}
+              {crawling ? "크롤링 중..." : deepScan ? "Deep Scan 크롤링 시작" : "크롤링 시작"}
             </Button>
           </Space>
         </Card>

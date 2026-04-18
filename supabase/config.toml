@@ -1,0 +1,4 @@
+project_id = "jktvqcubipmcpihzgbpz"
+
+[functions.crawl-dealers]
+verify_jwt = false

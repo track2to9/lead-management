@@ -10,7 +10,7 @@
 //   - done: final count
 //   - error: on failure
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const FIRECRAWL_URL = "https://api.firecrawl.dev/v2/scrape";
 
@@ -18,6 +18,8 @@ interface CrawlPayload {
   brand: string;
   category: "attachment" | "excavator";
   url: string;
+  deepScan?: boolean;      // 서브페이지 자동 탐색 여부
+  maxSubpages?: number;    // Deep Scan 시 최대 서브페이지 수 (기본 30)
 }
 
 interface Dealer {
@@ -59,60 +61,114 @@ function sseEvent(event: string, data: unknown): string {
 
 Deno.serve(async (req) => {
   // CORS preflight
+  const corsHeaders = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Headers": "authorization, content-type, apikey, x-client-info",
+  };
+
   if (req.method === "OPTIONS") {
-    return new Response(null, {
-      headers: {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "POST, OPTIONS",
-        "Access-Control-Allow-Headers": "authorization, content-type",
-      },
-    });
+    return new Response(null, { headers: corsHeaders });
   }
 
   if (req.method !== "POST") {
-    return new Response("Method not allowed", { status: 405 });
+    return new Response("Method not allowed", { status: 405, headers: corsHeaders });
   }
 
   // Auth
   const authHeader = req.headers.get("authorization");
   if (!authHeader) {
-    return new Response("Missing auth", { status: 401 });
+    return new Response("Missing auth", { status: 401, headers: corsHeaders });
   }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-  const supabaseAnon = Deno.env.get("SUPABASE_ANON_KEY")!;
+  // 서버사이드: secret key 우선, legacy service_role 차선
+  const serverKey =
+    Deno.env.get("SECRET_KEY") ??
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const firecrawlKey = Deno.env.get("FIRECRAWL_API_KEY");
 
   if (!firecrawlKey) {
     return new Response(JSON.stringify({ error: "FIRECRAWL_API_KEY not configured" }), {
       status: 500,
-      headers: { "content-type": "application/json" },
+      headers: { ...corsHeaders, "content-type": "application/json" },
     });
   }
 
-  const supabase = createClient(supabaseUrl, supabaseAnon, {
-    global: { headers: { authorization: authHeader } },
+  // Service-role 클라이언트 (RLS 우회 + 유저 토큰 검증 가능)
+  const supabase = createClient(supabaseUrl, serverKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
   });
 
-  const { data: userResult } = await supabase.auth.getUser();
+  // 명시적으로 사용자 JWT 검증
+  const userToken = authHeader.replace(/^Bearer\s+/i, "");
+  const { data: userResult, error: userError } = await supabase.auth.getUser(userToken);
   const user = userResult?.user;
   if (!user) {
-    return new Response("Unauthorized", { status: 401 });
+    return new Response(
+      JSON.stringify({ error: "Unauthorized", detail: userError?.message }),
+      { status: 401, headers: { ...corsHeaders, "content-type": "application/json" } },
+    );
   }
 
   let payload: CrawlPayload;
   try {
     payload = await req.json();
   } catch {
-    return new Response("Invalid JSON", { status: 400 });
+    return new Response("Invalid JSON", { status: 400, headers: corsHeaders });
   }
 
-  const { brand, category, url } = payload;
+  const { brand, category, url, deepScan = false, maxSubpages = 30 } = payload;
   if (!brand || !category || !url) {
-    return new Response("Missing fields: brand, category, url", { status: 400 });
+    return new Response("Missing fields: brand, category, url", { status: 400, headers: corsHeaders });
   }
 
   const encoder = new TextEncoder();
+
+  // Firecrawl 호출 헬퍼 (json + optional links 추출)
+  async function firecrawlScrape(pageUrl: string, withLinks = false): Promise<{ dealers: Dealer[]; links: string[] }> {
+    const formats: unknown[] = [
+      {
+        type: "json",
+        schema: DEALER_SCHEMA,
+        prompt:
+          "Extract all dealer/distributor information from this page. For each dealer, extract: company_name, country, city, address, phone, email, website. Be thorough — extract ALL dealers visible, including those in lists, tables, or maps.",
+      },
+    ];
+    if (withLinks) formats.push("links");
+
+    const resp = await fetch(FIRECRAWL_URL, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${firecrawlKey}` },
+      body: JSON.stringify({ url: pageUrl, formats }),
+    });
+    if (!resp.ok) throw new Error(`Firecrawl ${resp.status}: ${await resp.text()}`);
+    const data = await resp.json();
+    return {
+      dealers: (data?.data?.json?.dealers || []) as Dealer[],
+      links: (data?.data?.links || []) as string[],
+    };
+  }
+
+  // 링크 필터 — 소스 URL의 경로로 시작하는 하위 URL만 (국가 페이지 등)
+  function filterSubpages(baseUrl: string, links: string[]): string[] {
+    try {
+      const base = new URL(baseUrl);
+      const basePath = base.pathname.endsWith("/") ? base.pathname : base.pathname + "/";
+      const out = new Set<string>();
+      for (const raw of links) {
+        try {
+          const u = new URL(raw, baseUrl);
+          if (u.origin !== base.origin) continue;
+          if (!u.pathname.startsWith(basePath)) continue;
+          if (u.pathname === basePath) continue;  // self
+          // 해시/쿼리 제거된 깨끗한 URL
+          out.add(`${u.origin}${u.pathname}`);
+        } catch { /* skip malformed */ }
+      }
+      return Array.from(out);
+    } catch { return []; }
+  }
 
   const stream = new ReadableStream({
     async start(controller) {
@@ -141,58 +197,23 @@ Deno.serve(async (req) => {
       }
 
       const jobId = jobRow.id;
-      send("status", { message: "크롤링 시작", step: "init", jobId });
+      send("status", { message: deepScan ? "Deep Scan 시작 (서브페이지 포함)" : "크롤링 시작", step: "init", jobId });
 
-      try {
-        // 2) Call Firecrawl
-        send("status", { message: "페이지 스크레이핑 중...", step: "scraping" });
+      // 전역 dedupe
+      const seen = new Set<string>();
+      let saved = 0;
+      let totalFound = 0;
 
-        const firecrawlResp = await fetch(FIRECRAWL_URL, {
-          method: "POST",
-          headers: {
-            "content-type": "application/json",
-            authorization: `Bearer ${firecrawlKey}`,
-          },
-          body: JSON.stringify({
-            url,
-            formats: [
-              {
-                type: "json",
-                schema: DEALER_SCHEMA,
-                prompt:
-                  "Extract all dealer/distributor information from this page. For each dealer, extract: company_name, country, city, address, phone, email, website. Be thorough — extract ALL dealers visible, including those in lists, tables, or maps.",
-              },
-            ],
-          }),
-        });
+      async function processPage(pageUrl: string, withLinks: boolean): Promise<string[]> {
+        const { dealers, links } = await firecrawlScrape(pageUrl, withLinks);
+        totalFound += dealers.length;
 
-        if (!firecrawlResp.ok) {
-          const errText = await firecrawlResp.text();
-          throw new Error(`Firecrawl ${firecrawlResp.status}: ${errText}`);
-        }
-
-        const firecrawlData = await firecrawlResp.json();
-        const dealers: Dealer[] = firecrawlData?.data?.json?.dealers || [];
-
-        send("status", {
-          message: `${dealers.length}개 딜러 발견, 저장 중...`,
-          step: "extracting",
-          count: dealers.length,
-        });
-
-        // 3) Dedupe
-        const seen = new Set<string>();
-        const unique = dealers.filter((d) => {
-          if (!d.company_name) return false;
+        for (const d of dealers) {
+          if (!d.company_name) continue;
           const key = `${d.company_name}::${d.country || ""}`.toLowerCase();
-          if (seen.has(key)) return false;
+          if (seen.has(key)) continue;
           seen.add(key);
-          return true;
-        });
 
-        // 4) Upsert dealers + stream each one
-        let saved = 0;
-        for (const d of unique) {
           const { error: upsertErr } = await supabase
             .from("manufacturer_dealers")
             .upsert(
@@ -207,20 +228,49 @@ Deno.serve(async (req) => {
                 phone: d.phone || null,
                 email: d.email || null,
                 website: d.website || null,
-                source_url: url,
+                source_url: pageUrl,
                 raw_data: d,
                 crawled_at: new Date().toISOString(),
               },
               { onConflict: "user_id,brand,company_name,country" },
             );
 
-          if (!upsertErr) {
-            saved++;
-            send("dealer", d);
+          if (!upsertErr) { saved++; send("dealer", d); }
+        }
+        return links;
+      }
+
+      try {
+        // 2) 메인 페이지 처리
+        send("status", { message: "메인 페이지 스크레이핑 중...", step: "scraping" });
+        const mainLinks = await processPage(url, deepScan);
+
+        // 3) Deep Scan 모드라면 서브페이지 순회
+        if (deepScan) {
+          const subpages = filterSubpages(url, mainLinks).slice(0, maxSubpages);
+          send("status", {
+            message: `${subpages.length}개 서브페이지 발견 (최대 ${maxSubpages}), 순회 중...`,
+            step: "subpages",
+            count: subpages.length,
+          });
+
+          for (let i = 0; i < subpages.length; i++) {
+            const sub = subpages[i];
+            send("status", {
+              message: `서브페이지 ${i + 1}/${subpages.length}: ${sub}`,
+              step: "scraping_sub",
+              index: i + 1,
+              total: subpages.length,
+            });
+            try {
+              await processPage(sub, false);
+            } catch (e: any) {
+              send("status", { message: `서브페이지 실패: ${sub} (${e?.message || "err"})`, step: "sub_error" });
+            }
           }
         }
 
-        // 5) Update job + send done
+        // 4) Update job + done
         await supabase
           .from("dealer_crawl_jobs")
           .update({
@@ -230,7 +280,7 @@ Deno.serve(async (req) => {
           })
           .eq("id", jobId);
 
-        send("done", { count: saved, total: unique.length });
+        send("done", { count: saved, total: totalFound });
         controller.close();
       } catch (err: any) {
         const message = err?.message || "Unknown error";
@@ -251,10 +301,10 @@ Deno.serve(async (req) => {
 
   return new Response(stream, {
     headers: {
+      ...corsHeaders,
       "content-type": "text/event-stream",
       "cache-control": "no-cache",
       connection: "keep-alive",
-      "Access-Control-Allow-Origin": "*",
     },
   });
 });
